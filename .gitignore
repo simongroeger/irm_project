@@ -1,6 +1,7 @@
 *.pyc
 *.png
 *pybullet-object-models/*
+*.vscode/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

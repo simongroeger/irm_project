@@ -150,8 +150,8 @@ class Simulation:
         depthpx = np.reshape(depthpx, [self.width, self.height])  # Depth Map Range [0.0-1.0]
         # For debugging
         if debug:
-            plt.imsave("cam_img.png", rgbpx[..., :3].astype(np.uint8))
-            plt.imsave("depth_img.png", np.floor(depthpx*255))
+            plt.imsave("cam_" + str(cam_type) + "_img.png", rgbpx[..., :3].astype(np.uint8))
+            plt.imsave("depth_" + str(cam_type) + "_img.png", np.floor(depthpx*255))
         return rgbpx, depthpx
 
     def step(self):
