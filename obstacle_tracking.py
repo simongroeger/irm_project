@@ -4,13 +4,16 @@ import glob
 import time
 import math as m
 import numpy as np
+from numpy.core.multiarray import array
 import pybullet as p
 import pybullet_data
 from enum import Enum
+
+from sklearn import cluster
 from robot import Robot
 from objects import Obstacle, Table, Box, YCBObject, Goal
 from pybullet_object_models import ycb_objects
-from typing import Optional
+from typing import Dict, Optional
 import matplotlib.pyplot as plt
 import matplotlib
 from filterpy.kalman import KalmanFilter
@@ -19,26 +22,67 @@ from simulation import Camera
 
 
 
+class RedSphere:
+    def __init__(self, pos_px=np.array([0, 0]), pos_cart=np.array([0, 0, 0]), radius=0, amount_px=0):
+        self.pos_px = pos_px
+        self.pos_cart = pos_cart
+        self.radius = radius
+        self.amount_px = amount_px
+
+    def __str__(self):
+        return "RedSphere  pos: " + str(self.pos_cart) + ", r: " + str(self.radius)
+
+    def get_measurement(self):
+        return np.append(self.pos_cart, self.radius)
+
 class ObstacleTracking:
 
     def __init__(self, cam_matrices):
-        self.kf_small = KalmanFilter(dim_x=3, dim_z = 4)
-        self.kf_big = KalmanFilter(dim_x=3, dim_z = 4)
         self.cam_matrices = cam_matrices
+        
+        self.kf: Dict[str, KalmanFilter] = {}
+        self.kf["a"] = KalmanFilter(dim_x=4, dim_z = 4)
+        self.kf["b"] = KalmanFilter(dim_x=4, dim_z = 4)
+
+        #init kf
+        self.init_kf()
+
+        self.da_weight_position = 1
+        self.da_weight_size = 1
 
 
-    def step(self, rgb_fixed, depth_fixed, rgb_custom, depth_custom):
+    def init_kf(self):
+        self.kf["a"].x = np.array([0, 0, 0, 0.1])
+        self.kf["b"].x = np.array([0, 0, 0, 0.15])
 
+        for key in self.kf:
+            self.kf[key].F = np.eye(4)
+            self.kf[key].H = np.eye(4)
+            self.kf[key].P = 0.2 * np.eye(4)
+            self.kf[key].R = 0.05 * np.eye(4)
+   
+    
+    def update_kf(self, ordered_cluster):
+
+        for key in ordered_cluster:
+            self.kf[key].predict()
+            self.kf[key].update(ordered_cluster[key].get_measurement())
+
+
+    def is_pixel_red(self, px):
+        return (px[0] <= 10 or px[0] >= 160) and px[1] >= 100 and px[1] >= 20
+
+    def detectRedSpheres(self, rgb_img, depth_img):
         #plt.imsave("custom_img.png", rgb_custom[..., :3].astype(np.uint8))
 
         # detect red spheres: calculate position and size
-        hsv = (matplotlib.colors.rgb_to_hsv(rgb_custom[..., :3] / 255.0) * 255).astype(np.uint8)
+        hsv = (matplotlib.colors.rgb_to_hsv(rgb_img[..., :3] / 255.0) * 255).astype(np.uint8)
 
         red_px = []
-        adjusted = np.zeros((rgb_custom.shape[0], rgb_custom.shape[1], 3))
+        adjusted = np.zeros((rgb_img.shape[0], rgb_img.shape[1], 3))
 
-        for y in range(rgb_custom.shape[0]):
-            for x in range(rgb_custom.shape[1]):
+        for y in range(rgb_img.shape[0]):
+            for x in range(rgb_img.shape[1]):
                 h = hsv[y, x, 0]
                 if h <= 10 or h >= 160:
                     s = hsv[y, x, 1]
@@ -62,80 +106,48 @@ class ObstacleTracking:
             x = int(kmeans.cluster_centers_[i][1])
             size = cluster_sizes[i]
             if size > 20:
-                clusters.append((y, x, size))
+                clusters.append(RedSphere(pos_px=np.array([y,x]).astype(np.uint8), amount_px=size))
                 #print(x, y, size)
 
-        # check if red line between 
+        # check if path between both cluster centers is red
         if len(clusters) > 1:
             one_cluster = True
-            i = clusters[0][0]
-            j = clusters[0][1]
-            while i < clusters[1][0] and one_cluster:
-                h = hsv[i, j, 0]
-                s = hsv[i, j, 1]
-                v = hsv[i, j, 2]
-                if (h <= 10 or h >= 160) and s >= 100 and v >= 20:
-                    i += 1
-                    continue
-                else:
+            i_min = min(clusters[0].pos_px[0], clusters[1].pos_px[0])
+            i_max = max(clusters[0].pos_px[0], clusters[1].pos_px[0])
+            j_min = min(clusters[0].pos_px[1], clusters[1].pos_px[1])
+            j_max = max(clusters[0].pos_px[1], clusters[1].pos_px[1])
+            for i in range(i_min, i_max):
+                if not self.is_pixel_red(hsv[i,j_min]):
                     one_cluster = False
-                    break
-            while i > clusters[1][0] and one_cluster:
-                h = hsv[i, j, 0]
-                s = hsv[i, j, 1]
-                v = hsv[i, j, 2]
-                if (h <= 10 or h >= 160) and s >= 100 and v >= 20:
-                    i -= 1
-                    continue
-                else:
+            for j in range(j_min, j_max):
+                if not self.is_pixel_red(hsv[i_max, j]):
                     one_cluster = False
-                    break
-            while j < clusters[1][1] and one_cluster:
-                h = hsv[i, j, 0]
-                s = hsv[i, j, 1]
-                v = hsv[i, j, 2]
-                if (h <= 10 or h >= 160) and s >= 100 and v >= 20:
-                    j += 1
-                    continue
-                else:
-                    one_cluster = False
-                    break
-            while j > clusters[1][1] and one_cluster:
-                h = hsv[i, j, 0]
-                s = hsv[i, j, 1]
-                v = hsv[i, j, 2]
-                if (h <= 10 or h >= 160) and s >= 100 and v >= 20:
-                    j -= 1
-                    continue
-                else:
-                    one_cluster = False
-                    break
-
+            
             if one_cluster:
-                clusters.append((int(0.5*(clusters[0][0]+clusters[1][0])), int(0.5*(clusters[0][1]+clusters[1][1])), clusters[0][2] + clusters[1][2]))
+                clusters.append(RedSphere(pos_px=(0.5*clusters[0].pos_px+0.5*clusters[1].pos_px).astype(np.uint8), amount_px=clusters[0].amount_px+clusters[1].amount_px))
                 clusters.pop(0)
                 clusters.pop(0)
 
-        for y, x, size in clusters:
-            adjusted[y, x] = 255
+        for cluster in clusters:
+            adjusted[cluster.pos_px] = 255
 
         #plt.imsave("custom_adjusted_img.png", adjusted[..., :3].astype(np.uint8))
 
         # compute cartesian coords from pixels
         viewMat, projMat = self.cam_matrices[Camera.CUSTOMCAM]
 
-        v = np.array(viewMat).reshape((4,4)).T
+        v_inv = np.linalg.inv(np.array(viewMat).reshape((4,4)).T)
         p = np.array(projMat).reshape((4,4)).T
 
 
-        cart_cluster = []
-
-        for py, px, size in clusters:
-
-            pz = depth_custom[py, px]
+        for cluster in clusters:
+            px = cluster.pos_px[1]
+            py = cluster.pos_px[0]
+    
+            pz = depth_img[py, px]
             z = -0.25 / (5 - 4.95 * pz)
 
-            p_radius = np.sqrt(size/np.pi)
+            p_radius = np.sqrt(cluster.amount_px/np.pi)
             c_radius = 0
             for i in range(3):
                 w = p[2,2]*(z - c_radius) + p[2,3]
@@ -146,23 +158,69 @@ class ObstacleTracking:
             x = (px-128) / 128.0 * w / p[0, 0]
             y = -(py-128) / 128.0 * w / p[1, 1]
             p_cam = np.array([x, y, z, 1])
-            p_world = np.linalg.inv(v) @ np.array([x, y, z, 1])
+            p_world = v_inv @ p_cam
 
+            cluster.pos_cart = p_world[:3]
+            cluster.radius = c_radius
 
             #print("p", c_radius, p_cam, p_world)
             a = 5
 
-            cart_cluster.append((p_world[0], p_world[1], p_world[2], c_radius))
-            
-        #print()
+        return clusters
 
+
+    def da_loss(self, kf, cluster):
+        return self.da_weight_position *  np.linalg.norm(kf.x[:3] - cluster.pos_cart) + self.da_weight_size * np.linalg.norm(kf.x[3] - cluster.radius)
+
+    def data_association(self, cart_cluster):
         # data association with loss: distance pos and size
+        res = {}
 
-        # both kf step
-        self.kf_small
+        if len(cart_cluster) == 1:
+            loss_a = self.da_loss(self.kf["a"], cart_cluster[0])
+            loss_b = self.da_loss(self.kf["b"], cart_cluster[0])
+
+            print("1, loss:", loss_a, loss_b)
+
+            if loss_a < loss_b:
+                res["a"] = cart_cluster[0]
+            else:
+                res["b"] = cart_cluster[0]
+
+        if len(cart_cluster) == 2:
+            loss_0_a = self.da_loss(self.kf["a"], cart_cluster[0]) + self.da_loss(self.kf["b"], cart_cluster[1])
+            loss_1_a = self.da_loss(self.kf["a"], cart_cluster[1]) + self.da_loss(self.kf["b"], cart_cluster[0])
+            
+            print("2, loss:", loss_0_a, loss_1_a)
+
+            if loss_0_a < loss_1_a:
+                res["a"] = cart_cluster[0]
+                res["b"] = cart_cluster[1]
+            else:
+                res["a"] = cart_cluster[1]
+                res["b"] = cart_cluster[0]
+
+        return res
 
 
-        return cart_cluster
+            
+    def step(self, rgb_fixed, depth_fixed, rgb_custom, depth_custom):
+
+        cart_cluster = self.detectRedSpheres(rgb_custom, depth_custom)
+
+        ordered_cluster = self.data_association(cart_cluster)
+
+        #for k in ordered_cluster:
+        #    print(k, ordered_cluster[k])
+
+        self.update_kf(ordered_cluster)
+
+        a = 4
+        
+
+
+
+        
 
 
 
