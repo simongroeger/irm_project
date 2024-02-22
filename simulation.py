@@ -179,9 +179,6 @@ class Simulation:
                 print("ERROR! Robot in Collision")
                 sys.exit()
             obstacle.move()
-        # p_des = np.array([0.1, 0.4, 1.6])
-        p_des = np.array([0.65, 0.8, 1.24])
-        self.robot.Control(p_des, 1)
         p.stepSimulation()
         time.sleep(1.0 / 240.0)
 

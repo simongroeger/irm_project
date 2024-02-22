@@ -25,7 +25,12 @@ class Robot:
         self.pos = init_position
         self.axis_angle = orientation
         self.tscale = table_scaling
-
+        self.state = "start"
+        # self.target_position = np.array([0.0, 0.65, 1.24]) + np.array([0, 0, 0.5])
+        self.target_position = np.array([0.0, -0.65, 1.24]) + np.array([0, 0, 0.5])
+        self.gripper_t = np.array([0.09507803, -0.65512755, 1.30783048]) + np.array(
+            [0, 0, -0.05]
+        )
         if self.tscale != 1.0:
             self.pos = [self.pos[0], self.pos[1], self.pos[2] * self.tscale]
         self.ori = p.getQuaternionFromEuler(self.axis_angle)
@@ -80,8 +85,8 @@ class Robot:
     def ee_position(self):
         ee_info = p.getLinkState(self.id, self.ee_idx)
         ee_pos = ee_info[0]
-        # ee_ori = ee_info[1]
-        return ee_pos
+        ee_ori = ee_info[1]
+        return ee_pos, ee_ori
 
     def position_control(self, target_positions):
         p.setJointMotorControlArray(
@@ -99,13 +104,11 @@ class Robot:
         states = p.getJointStates(self.id, self.arm_idx)
         return [state[2] for state in states]
 
-    def JacobianPseudoinverseCtl(self, error, gain):
+    def get_Jacobian(self):
         joint_pos = self.get_all_joint_positions()
-        target_index = self.arm_idx[-1]
+        zero_vec = [0.0] * len(joint_pos)
         eeState = p.getLinkState(self.id, self.ee_idx)
         link_trn, link_rot, com_trn, com_rot, frame_pos, frame_rot = eeState
-        zero_vec = [0.0] * len(joint_pos)
-        com_trn = [0.0, 0.0, 0.0]
         jac_t, jac_r = p.calculateJacobian(
             bodyUniqueId=self.id,
             linkIndex=self.ee_idx,
@@ -114,21 +117,101 @@ class Robot:
             objVelocities=zero_vec,
             objAccelerations=zero_vec,
         )
-        jac = np.asarray(jac_t)[:, : len(self.arm_idx)]
-        jac_pinv = np.linalg.pinv(jac)
-        v_ctl = np.dot(jac_pinv, error) * gain
-        return v_ctl
+        jac_t = np.asarray(jac_t)[:, : len(self.arm_idx)]
+        jac_r = np.asarray(jac_r)[:, : len(self.arm_idx)]
+        return jac_t, jac_r
 
-    def Control(self, p_des, gain):
-        p_curr = self.ee_position()
-        error = p_des - p_curr
-        v_ctl = self.JacobianPseudoinverseCtl(error, gain)
+    def JacobianPseudoinverseCtl(self, error_t, gain):
+        jac_t, jac_r = self.get_Jacobian()
+        jac_t_pinv = np.linalg.pinv(jac_t)
+        v_ctl_t = np.dot(jac_t_pinv, error_t) * gain
 
+        # error_r = np.asarray(p.getEulerFromQuaternion(error_r))
+        # jac_r_pinv = np.linalg.pinv(jac_r)
+        # v_ctl_r = np.dot(jac_r_pinv, error_r) * gain
+
+        return v_ctl_t
+
+    def Control(self, t_des, gain):
+        t_curr, r_curr = self.ee_position()
+        error_t = t_des - t_curr
+        v_ctl_t = self.JacobianPseudoinverseCtl(error_t, gain)
         joint_positions = self.get_joint_positions()
-        joint_velocities = v_ctl
+        joint_velocities = v_ctl_t
         p.setJointMotorControlArray(
             self.id,
             jointIndices=self.arm_idx,
             controlMode=p.VELOCITY_CONTROL,
             targetVelocities=joint_velocities,
         )
+
+    def check_if_ee_reached(self, t_des):
+        t_curr, _ = self.ee_position()
+        return np.abs(np.linalg.norm(t_des - t_curr)) < 0.02
+
+    def open_gripper(self):
+        p.setJointMotorControlArray(
+            self.id,
+            jointIndices=self.gripper_idx,
+            controlMode=p.POSITION_CONTROL,
+            targetPositions=[0.04, 0.04],
+        )
+
+    def check_if_gripper_open(self):
+        states = p.getJointStates(self.id, self.gripper_idx)
+        return states[0][0] > 0.03
+
+    def close_gripper(self):
+        p.setJointMotorControlArray(
+            self.id,
+            jointIndices=self.gripper_idx,
+            controlMode=p.POSITION_CONTROL,
+            targetPositions=[0.01, 0.01],
+        )
+
+    def check_if_gripper_closed(self):
+        states = p.getJointStates(self.id, self.gripper_idx)
+        return states[0][0] < 0.02
+
+    def do(self):
+        state = self.state
+        print(state)
+        if state == "start":
+            if self.check_if_gripper_open():
+                self.state = "go_to_gripper"
+            else:
+                self.state = "open_gripper"
+        elif state == "open_gripper":
+            if self.check_if_gripper_open():
+                self.state = "go_to_gripper"
+            else:
+                self.open_gripper()
+                self.state = "open_gripper"
+        elif state == "go_to_gripper":
+            if self.check_if_ee_reached(self.gripper_t):
+                self.state = "close_gripper"
+            else:
+                self.Control(self.gripper_t, 1)
+                self.state = "go_to_gripper"
+        elif state == "close_gripper":
+            if self.check_if_gripper_closed():
+                self.state = "go_to_target"
+            else:
+                self.close_gripper()
+                self.Control(self.gripper_t, 1)
+                self.state = "close_gripper"
+        elif state == "go_to_target":
+            if self.check_if_ee_reached(self.target_position):
+                self.state = "deliver"
+            else:
+                self.Control(self.target_position, 1)
+                self.state = "go_to_target"
+        elif state == "deliver":
+            if self.check_if_gripper_open():
+                self.state = "done"
+            else:
+                self.Control(self.target_position, 1)
+                self.open_gripper()
+                self.state = "deliver"
+        elif state == "done":
+            self.Control(self.target_position, 1)
