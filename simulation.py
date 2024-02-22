@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 
 GRAVITY = -9.8
 
+
 class Camera(Enum):
     FIXEDCAM = 1
     CUSTOMCAM = 2
@@ -38,15 +39,18 @@ class Simulation:
         target_object: To select which object to grasp (cube + YCB available).
         randomize: Randomizes between the set of YCB objects.
     """
-    def __init__(self,
-                 timestep: float = (1/240.),
-                 with_gui: bool = True,
-                 camera_width: int = 256,
-                 camera_height: int = 256,
-                 cam_pose: np.ndarray = np.array([2.5, 0, 2.0]),
-                 target_pose: np.ndarray = np.array([1.0, 0, 1.7]),
-                 target_object: Optional[str] = "cube",
-                 randomize: bool = False):
+
+    def __init__(
+        self,
+        timestep: float = (1 / 240.0),
+        with_gui: bool = True,
+        camera_width: int = 256,
+        camera_height: int = 256,
+        cam_pose: np.ndarray = np.array([2.5, 0, 2.0]),
+        target_pose: np.ndarray = np.array([1.0, 0, 1.7]),
+        target_object: Optional[str] = "cube",
+        randomize: bool = False,
+    ):
         # settings here
         self.g = GRAVITY
         self.timestep = timestep
@@ -61,10 +65,12 @@ class Simulation:
         self.target_pose = target_pose
         # internal
         self.cam_matrices = dict()
-        self.cam_matrices[Camera.FIXEDCAM] = self.set_camera(np.array([2.5, 0, 2.0]),
-                                                             np.array([1.0, 0, 1.7]))
-        self.cam_matrices[Camera.CUSTOMCAM] = self.set_camera(self.cam_pose,
-                                                              self.target_pose)
+        self.cam_matrices[Camera.FIXEDCAM] = self.set_camera(
+            np.array([2.5, 0, 2.0]), np.array([1.0, 0, 1.7])
+        )
+        self.cam_matrices[Camera.CUSTOMCAM] = self.set_camera(
+            self.cam_pose, self.target_pose
+        )
 
         self.box = self.table = self.robot = self.goal = self.wall = None
         # initial object position
@@ -80,8 +86,11 @@ class Simulation:
         p.setAdditionalSearchPath(pybullet_data.getDataPath())
         # add objects
         p.loadURDF("plane.urdf")
-        self.wall = p.loadURDF("plane_transparent.urdf", [-0.6, 0., 0.],
-                               p.getQuaternionFromEuler([0, m.pi/2, 0]))
+        self.wall = p.loadURDF(
+            "plane_transparent.urdf",
+            [-0.6, 0.0, 0.0],
+            p.getQuaternionFromEuler([0, m.pi / 2, 0]),
+        )
         self.table = Table()
         self.robot = Robot()
         self.goal = Goal(position=(0.65, 0.8, 1.24))
@@ -90,28 +99,30 @@ class Simulation:
             if self.target_object == "cube":
                 self.box = Box(position=self.initial_position)
             else:
-                self.box = YCBObject(obj_name=self.target_object,
-                                     position=self.initial_position)
+                self.box = YCBObject(
+                    obj_name=self.target_object, position=self.initial_position
+                )
 
         else:
             object_root_path = ycb_objects.getDataPath()
             files = glob.glob(os.path.join(object_root_path, "Ycb*"))
-            obj_names = [file.split('/')[-1] for file in files]
+            obj_names = [file.split("/")[-1] for file in files]
             selected_object = obj_names[np.random.randint(0, len(obj_names))]
-            self.box = YCBObject(obj_name=selected_object,
-                                 position=self.initial_position)
+            self.box = YCBObject(
+                obj_name=selected_object, position=self.initial_position
+            )
 
         self._add_obstacles()
 
     def _add_obstacles(self):
         self.obstacles = []
         scales = [0.3, 0.2]
-        planes = [((0.4, 0.9), (0.7, 1.0), (1.5, 2.0)),
-                  ((0.4, 0.9), (0.5, 0.7), (1.5, 2.0))]
+        planes = [
+            ((0.4, 0.9), (0.7, 1.0), (1.5, 2.0)),
+            ((0.4, 0.9), (0.5, 0.7), (1.5, 2.0)),
+        ]
         for i, (plane, scale) in enumerate(zip(planes, scales)):
-            self.obstacles.append(Obstacle(plane=plane,
-                                           scale=scale,
-                                           flip_index=i))
+            self.obstacles.append(Obstacle(plane=plane, scale=scale, flip_index=i))
 
     def stop_obstacles(self):
         # for developing
@@ -126,45 +137,53 @@ class Simulation:
         view_matrix = p.computeViewMatrix(
             cameraEyePosition=camera_pose,
             cameraTargetPosition=target_pose,
-            cameraUpVector=np.array([0, 0, 1]))
+            cameraUpVector=np.array([0, 0, 1]),
+        )
 
         projection_matrix = p.computeProjectionMatrixFOV(
-            fov=70.0,
-            aspect=1.0,
-            nearVal=0.05,  # 0.05 5
-            farVal=5.0)
+            fov=70.0, aspect=1.0, nearVal=0.05, farVal=5.0  # 0.05 5
+        )
 
         return view_matrix, projection_matrix
 
-    def get_renders(self, cam_type: Camera = Camera.FIXEDCAM,
-                    debug: bool = False):
+    def get_renders(self, cam_type: Camera = Camera.FIXEDCAM, debug: bool = False):
         # here are some robot specific params
         # better way than p. get some
         # like self.physics_client.getCameraImage
         viewMat, projMat = self.cam_matrices[cam_type]
         _, _, rgbpx, depthpx, _ = p.getCameraImage(
-            width=self.width, height=self.height, viewMatrix=viewMat,
-            projectionMatrix=projMat, renderer=p.ER_TINY_RENDERER)  # ER_BULLET_HARDWARE_OPENGL)
+            width=self.width,
+            height=self.height,
+            viewMatrix=viewMat,
+            projectionMatrix=projMat,
+            renderer=p.ER_TINY_RENDERER,
+        )  # ER_BULLET_HARDWARE_OPENGL)
 
-        rgbpx = np.reshape(rgbpx, [self.width, self.height, 4])  # RGBA - channel Range [0-255]
-        depthpx = np.reshape(depthpx, [self.width, self.height])  # Depth Map Range [0.0-1.0]
+        rgbpx = np.reshape(
+            rgbpx, [self.width, self.height, 4]
+        )  # RGBA - channel Range [0-255]
+        depthpx = np.reshape(
+            depthpx, [self.width, self.height]
+        )  # Depth Map Range [0.0-1.0]
         # For debugging
         if debug:
             plt.imsave("cam_img.png", rgbpx[..., :3].astype(np.uint8))
-            plt.imsave("depth_img.png", np.floor(depthpx*255))
+            plt.imsave("depth_img.png", np.floor(depthpx * 255))
         return rgbpx, depthpx
 
     def step(self):
         for obstacle in self.obstacles:
             contact_points = p.getContactPoints(self.robot.id, obstacle.id)
             wall_points = p.getContactPoints(self.robot.id, self.wall)
-            if ((len(contact_points) > 0) or (len(wall_points) > 0)):
+            if (len(contact_points) > 0) or (len(wall_points) > 0):
                 print("ERROR! Robot in Collision")
                 sys.exit()
             obstacle.move()
+        # p_des = np.array([0.1, 0.4, 1.6])
+        p_des = np.array([0.65, 0.8, 1.24])
+        self.robot.Control(p_des, 1)
         p.stepSimulation()
-        time.sleep(1./240.)
+        time.sleep(1.0 / 240.0)
 
     def get_robot(self):
         return self.robot
-

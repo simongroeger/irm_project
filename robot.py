@@ -14,11 +14,13 @@ class Robot:
         orientation: Robot orientation in axis angle representation.
         table_scaling: Scaling parameter for the table.
     """
-    def __init__(self,
-                 init_position: Tuple[float, float, float] = [0, 0, 0.62],
-                 orientation: Tuple[float, float, float] = [0, 0, 0],
-                 table_scaling: float = 2.0):
 
+    def __init__(
+        self,
+        init_position: Tuple[float, float, float] = [0, 0, 0.62],
+        orientation: Tuple[float, float, float] = [0, 0, 0],
+        table_scaling: float = 2.0,
+    ):
         # load robot
         self.pos = init_position
         self.axis_angle = orientation
@@ -34,8 +36,9 @@ class Robot:
 
         self.ee_idx = 11
 
-        self.id = p.loadURDF("franka_panda/panda.urdf", self.pos, self.ori,
-                             useFixedBase=True)
+        self.id = p.loadURDF(
+            "franka_panda/panda.urdf", self.pos, self.ori, useFixedBase=True
+        )
 
         self.lower_limits, self.upper_limits = self.get_joint_limits()
 
@@ -59,18 +62,23 @@ class Robot:
 
     def print_joint_infos(self):
         num_joints = p.getNumJoints(self.id)
-        print('number of joints are: {}'.format(num_joints))
+        print("number of joints are: {}".format(num_joints))
         for i in range(0, num_joints):
-            print('Index: {}'.format(p.getJointInfo(self.id, i)[0]))
-            print('Name: {}'.format(p.getJointInfo(self.id, i)[1]))
-            print('Typ: {}'.format(p.getJointInfo(self.id, i)[2]))
+            print("Index: {}".format(p.getJointInfo(self.id, i)[0]))
+            print("Name: {}".format(p.getJointInfo(self.id, i)[1]))
+            print("Typ: {}".format(p.getJointInfo(self.id, i)[2]))
 
     def get_joint_positions(self):
         states = p.getJointStates(self.id, self.arm_idx)
         return [state[0] for state in states]
 
+    def get_all_joint_positions(self):
+        idx = self.arm_idx + self.gripper_idx
+        states = p.getJointStates(self.id, idx)
+        return [state[0] for state in states]
+
     def ee_position(self):
-        ee_info = p.getLinkstate(self.id, self.ee_idx)
+        ee_info = p.getLinkState(self.id, self.ee_idx)
         ee_pos = ee_info[0]
         # ee_ori = ee_info[1]
         return ee_pos
@@ -81,4 +89,46 @@ class Robot:
             jointIndices=self.arm_idx,
             controlMode=p.POSITION_CONTROL,
             targetPositions=target_positions,
+        )
+
+    def get_joint_velocities(self):
+        states = p.getJointStates(self.id, self.arm_idx)
+        return [state[1] for state in states]
+
+    def get_joint_accelerations(self):
+        states = p.getJointStates(self.id, self.arm_idx)
+        return [state[2] for state in states]
+
+    def JacobianPseudoinverseCtl(self, error, gain):
+        joint_pos = self.get_all_joint_positions()
+        target_index = self.arm_idx[-1]
+        eeState = p.getLinkState(self.id, self.ee_idx)
+        link_trn, link_rot, com_trn, com_rot, frame_pos, frame_rot = eeState
+        zero_vec = [0.0] * len(joint_pos)
+        com_trn = [0.0, 0.0, 0.0]
+        jac_t, jac_r = p.calculateJacobian(
+            bodyUniqueId=self.id,
+            linkIndex=self.ee_idx,
+            localPosition=com_trn,
+            objPositions=joint_pos,
+            objVelocities=zero_vec,
+            objAccelerations=zero_vec,
+        )
+        jac = np.asarray(jac_t)[:, : len(self.arm_idx)]
+        jac_pinv = np.linalg.pinv(jac)
+        v_ctl = np.dot(jac_pinv, error) * gain
+        return v_ctl
+
+    def Control(self, p_des, gain):
+        p_curr = self.ee_position()
+        error = p_des - p_curr
+        v_ctl = self.JacobianPseudoinverseCtl(error, gain)
+
+        joint_positions = self.get_joint_positions()
+        joint_velocities = v_ctl
+        p.setJointMotorControlArray(
+            self.id,
+            jointIndices=self.arm_idx,
+            controlMode=p.VELOCITY_CONTROL,
+            targetVelocities=joint_velocities,
         )
