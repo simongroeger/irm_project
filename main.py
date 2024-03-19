@@ -30,13 +30,13 @@ for i in range(17):
 print("start looping")
 for time_step in range(10000):
     start = time.time()
-    plot_arr[0].append(time_step)
+    #plot_arr[0].append(time_step)
 
     for j, obstacle in enumerate(sim.obstacles):
         print("Ostacle pos", obstacle.get_pos(), obstacle.scaling)
-        for i in range(3):
-            plot_arr[1+4*j+i].append(obstacle.get_pos()[i])
-        plot_arr[1+4*j+3].append(obstacle.scaling/2)
+        #for i in range(3):
+        #    plot_arr[1+4*j+i].append(obstacle.get_pos()[i])
+        #plot_arr[1+4*j+3].append(obstacle.scaling/2)
 
 
     rgb_fixed, depth_fixed = sim.get_renders(cam_type=Camera.FIXEDCAM)
@@ -44,9 +44,9 @@ for time_step in range(10000):
     obstacle_tracking.step(rgb_fixed, depth_fixed, rgb_custom, depth_custom)
 
 
-    for i in range(4):
-        plot_arr[9+i].append(obstacle_tracking.kf["a"].x[i])
-        plot_arr[13+i].append(obstacle_tracking.kf["b"].x[i])
+    #for i in range(4):
+    #    plot_arr[9+i].append(obstacle_tracking.kf["a"].x[i])
+    #    plot_arr[13+i].append(obstacle_tracking.kf["b"].x[i])
 
     print("kf a", obstacle_tracking.kf["a"].x)
     print("kf b", obstacle_tracking.kf["b"].x)
@@ -58,18 +58,18 @@ for time_step in range(10000):
     end = time.time()
     print("step took", end - start, "s \n")
 
-    for ax in axs:
-        ax.clear()
-    for i in range(1, len(plot_arr)):
-        if len(plot_arr[0]) == len(plot_arr[i]):
-            axs[(i-1)%4].plot(plot_arr[0], plot_arr[i], label=str(i))
+    #for ax in axs:
+    #    ax.clear()
+    #for i in range(1, len(plot_arr)):
+    #    if len(plot_arr[0]) == len(plot_arr[i]):
+    #        axs[(i-1)%4].plot(plot_arr[0], plot_arr[i], label=str(i))
 
-    for ax in axs:
-        ax.legend()
-    plt.draw()
-    plt.pause(0.01)
+    #for ax in axs:
+    #    ax.legend()
+    #plt.draw()
+    #plt.pause(0.01)
 
-    a = 5
+    #a = 5
 
     
 
