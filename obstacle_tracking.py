@@ -191,7 +191,7 @@ class ObstacleTracking:
             loss_0_a = self.da_loss(self.kf["a"], cart_cluster[0]) + self.da_loss(self.kf["b"], cart_cluster[1])
             loss_1_a = self.da_loss(self.kf["a"], cart_cluster[1]) + self.da_loss(self.kf["b"], cart_cluster[0])
             
-            print("2, loss:", loss_0_a, loss_1_a)
+            #print("2, loss:", loss_0_a, loss_1_a)
 
             if loss_0_a < loss_1_a:
                 res["a"] = cart_cluster[0]

@@ -2,6 +2,7 @@ import pybullet as p
 import pybullet_robots
 import numpy as np
 from typing import Tuple
+import sys
 
 
 class Robot:
@@ -27,7 +28,7 @@ class Robot:
         self.tscale = table_scaling
         self.state = "start"
         # self.target_position = np.array([0.0, 0.65, 1.24]) + np.array([0, 0, 0.5])
-        self.target_position = np.array([0.0, -0.65, 1.24]) + np.array([0, 0, 0.5])
+        self.target_position = np.array([0.6, 0.75, 1.24]) + np.array([0, 0, 0.5])
         self.gripper_t = np.array([0.09507803, -0.65512755, 1.30783048]) + np.array(
             [0, 0, -0.05]
         )
@@ -145,9 +146,9 @@ class Robot:
             targetVelocities=joint_velocities,
         )
 
-    def check_if_ee_reached(self, t_des):
+    def check_if_ee_reached(self, t_des, neccessary_distrance=0.02):
         t_curr, _ = self.ee_position()
-        return np.abs(np.linalg.norm(t_des - t_curr)) < 0.02
+        return np.abs(np.linalg.norm(t_des - t_curr)) < neccessary_distrance
 
     def open_gripper(self):
         p.setJointMotorControlArray(
@@ -172,8 +173,24 @@ class Robot:
     def check_if_gripper_closed(self):
         states = p.getJointStates(self.id, self.gripper_idx)
         return states[0][0] < 0.02
+    
+    def getNextTarget(self, trajectory):
+        current_ee = np.array(self.ee_position()[0])
+        if len(trajectory) > 1:
+            min_distance = 0
+            min_index = -1
+            for i, elem in enumerate(trajectory):
+                current_distance = np.abs(np.linalg.norm(elem - current_ee))
+                if min_index == -1 or current_distance < min_distance:
+                    min_index = i
+                    min_distance = current_distance
 
-    def do(self):
+            target_index = min(len(trajectory)-1, min_index + 2)
+            return trajectory[target_index]
+        else:
+            return current_ee
+
+    def do(self, trajectory = []):
         state = self.state
         print(state)
         if state == "start":
@@ -201,10 +218,14 @@ class Robot:
                 self.Control(self.gripper_t, 1)
                 self.state = "close_gripper"
         elif state == "go_to_target":
-            if self.check_if_ee_reached(self.target_position):
+            if self.check_if_ee_reached(self.target_position, neccessary_distrance=0.05):
                 self.state = "deliver"
             else:
-                self.Control(self.target_position, 1)
+                current_target = self.getNextTarget(trajectory)
+
+                print("current", self.ee_position()[0], "next", current_target)
+                
+                self.Control(current_target, 1)
                 self.state = "go_to_target"
         elif state == "deliver":
             if self.check_if_gripper_open():
@@ -214,4 +235,5 @@ class Robot:
                 self.open_gripper()
                 self.state = "deliver"
         elif state == "done":
-            self.Control(self.target_position, 1)
+            self.Control(np.array(self.ee_position()[0]), 1)
+            sys.exit()
