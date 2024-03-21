@@ -9,17 +9,15 @@ import pybullet as p
 import pybullet_data
 from enum import Enum
 
-from sklearn import cluster
-from robot import Robot
-from objects import Obstacle, Table, Box, YCBObject, Goal
-from pybullet_object_models import ycb_objects
 from typing import Dict, Optional
-import matplotlib.pyplot as plt
 import matplotlib
 from filterpy.kalman import KalmanFilter
-from sklearn.cluster import kmeans_plusplus, KMeans
-from simulation import Camera
+from sklearn.cluster import KMeans
 
+
+class Camera(Enum):
+    FIXEDCAM = 1
+    CUSTOMCAM = 2
 
 
 class RedSphere:
@@ -204,7 +202,7 @@ class ObstacleTracking:
 
 
             
-    def step(self, rgb_fixed, depth_fixed, rgb_custom, depth_custom):
+    def step(self, rgb_custom, depth_custom):
 
         cart_cluster = self.detectRedSpheres(rgb_custom, depth_custom)
 

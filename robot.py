@@ -3,6 +3,9 @@ import pybullet_robots
 import numpy as np
 from typing import Tuple
 import sys
+from trajectory_planning import TrajectoryPlanning
+from obstacle_tracking import ObstacleTracking
+import vis
 
 
 class Robot:
@@ -17,18 +20,18 @@ class Robot:
     """
 
     def __init__(
-        self,
+        self, cam_matrices,
         init_position: Tuple[float, float, float] = [0, 0, 0.62],
         orientation: Tuple[float, float, float] = [0, 0, 0],
-        table_scaling: float = 2.0,
+        table_scaling: float = 2.0
     ):
         # load robot
         self.pos = init_position
         self.axis_angle = orientation
         self.tscale = table_scaling
         self.state = "start"
-        # self.target_position = np.array([0.0, 0.65, 1.24]) + np.array([0, 0, 0.5])
-        self.target_position = np.array([0.6, 0.75, 1.24]) + np.array([0, 0, 0.5])
+        self.start_position = np.array([0.0, -0.65, 1.24]) + np.array([0, 0, 0.25])
+        self.target_position = np.array([0.55, 0.7, 1.24]) + np.array([0, 0, 0.25])
         self.gripper_t = np.array([0.09507803, -0.65512755, 1.30783048]) + np.array(
             [0, 0, -0.05]
         )
@@ -52,6 +55,10 @@ class Robot:
 
         for j in range(p.getNumJoints(self.id)):
             p.changeDynamics(self.id, j, linearDamping=0, angularDamping=0)
+
+        self.trajectory_planning  = TrajectoryPlanning(self.start_position, self.target_position)
+        self.obstacle_tracking = ObstacleTracking(cam_matrices)
+
 
     def set_default_position(self):
         for idx, pos in zip(self.arm_idx, self.default_arm):
@@ -136,6 +143,9 @@ class Robot:
     def Control(self, t_des, gain):
         t_curr, r_curr = self.ee_position()
         error_t = t_des - t_curr
+        #limit control error -> limit joint velocity 
+        if np.linalg.norm(error_t) > 0.2:
+            error_t *= 0.2 / np.linalg.norm(error_t)
         v_ctl_t = self.JacobianPseudoinverseCtl(error_t, gain)
         joint_positions = self.get_joint_positions()
         joint_velocities = v_ctl_t
@@ -174,42 +184,29 @@ class Robot:
         states = p.getJointStates(self.id, self.gripper_idx)
         return states[0][0] < 0.02
     
-    def getNextTarget(self, trajectory):
-        current_ee = np.array(self.ee_position()[0])
-        if len(trajectory) > 1:
-            min_distance = 0
-            min_index = -1
-            for i, elem in enumerate(trajectory):
-                current_distance = np.abs(np.linalg.norm(elem - current_ee))
-                if min_index == -1 or current_distance < min_distance:
-                    min_index = i
-                    min_distance = current_distance
 
-            target_index = min(len(trajectory)-1, min_index + 2)
-            return trajectory[target_index]
-        else:
-            return current_ee
-
-    def do(self, trajectory = []):
+    def do(self):
         state = self.state
         print(state)
+        currentEE = np.array(self.ee_position()[0])
+
         if state == "start":
-            if self.check_if_gripper_open():
-                self.state = "go_to_gripper"
-            else:
-                self.state = "open_gripper"
+            self.state = "open_gripper"
+
         elif state == "open_gripper":
             if self.check_if_gripper_open():
                 self.state = "go_to_gripper"
             else:
                 self.open_gripper()
                 self.state = "open_gripper"
+
         elif state == "go_to_gripper":
             if self.check_if_ee_reached(self.gripper_t):
                 self.state = "close_gripper"
             else:
                 self.Control(self.gripper_t, 1)
                 self.state = "go_to_gripper"
+
         elif state == "close_gripper":
             if self.check_if_gripper_closed():
                 self.state = "go_to_target"
@@ -217,16 +214,35 @@ class Robot:
                 self.close_gripper()
                 self.Control(self.gripper_t, 1)
                 self.state = "close_gripper"
+
+
+        elif state == "go_to_start":
+            if self.check_if_ee_reached(self.start_position):
+                self.state = "go_to_target"
+            else:
+                vis.plot([], [], self.obstacle_tracking, self.start_position, currentEE)
+                self.Control(self.start_position, 1)
+                self.state = "go_to_start"
+
+
         elif state == "go_to_target":
-            if self.check_if_ee_reached(self.target_position, neccessary_distrance=0.05):
+            if self.check_if_ee_reached(self.target_position):
                 self.state = "deliver"
             else:
-                current_target = self.getNextTarget(trajectory)
+                sucess, trajectory, trajectory_support_points = self.trajectory_planning.plan([self.obstacle_tracking.kf["a"].x, self.obstacle_tracking.kf["b"].x])
 
-                print("current", self.ee_position()[0], "next", current_target)
-                
-                self.Control(current_target, 1)
-                self.state = "go_to_target"
+                current_target = self.trajectory_planning.getNextTarget(currentEE, trajectory)
+
+                vis.plot(trajectory, trajectory_support_points, self.obstacle_tracking, current_target, currentEE)
+
+                if not sucess:
+                    self.state = "go_to_start"
+                else:
+                    print("current Target", current_target, " dist", np.linalg.norm(current_target - currentEE), ": ", current_target - currentEE)
+                    self.Control(current_target, 1)
+                    self.state = "go_to_target"
+
+
         elif state == "deliver":
             if self.check_if_gripper_open():
                 self.state = "done"
@@ -234,6 +250,7 @@ class Robot:
                 self.Control(self.target_position, 1)
                 self.open_gripper()
                 self.state = "deliver"
+
         elif state == "done":
             self.Control(np.array(self.ee_position()[0]), 1)
             sys.exit()

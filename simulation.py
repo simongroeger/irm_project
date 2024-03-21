@@ -12,13 +12,9 @@ from objects import Obstacle, Table, Box, YCBObject, Goal
 from pybullet_object_models import ycb_objects
 from typing import Optional
 import matplotlib.pyplot as plt
+from obstacle_tracking import Camera
 
 GRAVITY = -9.8
-
-
-class Camera(Enum):
-    FIXEDCAM = 1
-    CUSTOMCAM = 2
 
 
 class Simulation:
@@ -92,7 +88,7 @@ class Simulation:
             p.getQuaternionFromEuler([0, m.pi / 2, 0]),
         )
         self.table = Table()
-        self.robot = Robot()
+        self.robot = Robot(self.cam_matrices)
         self.goal = Goal(position=(0.65, 0.8, 1.24))
 
         if not self.randomize:
