@@ -5,6 +5,7 @@ from giga.utils.transform import Transform
 from giga.grasp_sampler import GpgGraspSamplerPcl
 import open3d as o3d
 import trimesh
+import pybullet as p
 
 
 def sample_grasps(sim):
@@ -64,7 +65,7 @@ def sample_grasps(sim):
         point_cloud,
         num_parallel=num_parallel_workers,
         num_grasps=num_grasps,
-        max_num_samples=80,
+        max_num_samples=15,
         safety_dis_above_table=safety_dist_above_table,
         show_final_grasps=False,
     )
@@ -79,5 +80,23 @@ def sample_grasps(sim):
     # grasps_scene.show()
 
     # ToDo: Check grasp definition to execute the grasps
+    suitable_grasps = []
+    for rot, pos in zip(grasps_rot, grasps_pos):
+        rot_mat = np.asarray(p.getMatrixFromQuaternion(rot)).reshape(3, 3)
+        grasps_rot = rot_mat @ np.array([0, 0, 1])
+        print("Grasp rot: ", grasps_rot)
+        # z needs to be between -0.8 and -1.2
+        if -1.4 < grasps_rot[2] < -0.6:
+            if -1 < grasps_rot[1] < 0.5:
+                # if -1.2 < grasps_rot[0] < -0.8:
+                print("append")
+                suitable_grasps.append((pos, grasps_rot))
 
-    return grasps[0], grasps_pos[0], grasps_rot[0]
+    if len(suitable_grasps) == 0:
+        return None
+    best_grasp = suitable_grasps[0]
+    # for pos, rot in suitable_grasps:
+    #     if pos[2] > best_grasp[1][2]:
+    #         best_grasp = (pos, rot)
+
+    return best_grasp[0], best_grasp[1]

@@ -8,6 +8,9 @@ from trajectory_planning import TrajectoryPlanning
 from obstacle_tracking import ObstacleTracking
 import vis
 
+DOWN_GRIPPER = np.array([0, 0, -1])
+TARGER_GRIPPER = np.array([0, 1, 0.5])
+
 
 class Robot:
     """Robot Class.
@@ -33,7 +36,8 @@ class Robot:
         self.tscale = table_scaling
         self.state = "start"
         self.gripper_state = "open"
-        self.r_des = np.array([0, 0, -1])
+        self.r_des = DOWN_GRIPPER
+        self.r_object = DOWN_GRIPPER
         self.start_position = np.array([0.0, -0.65, 1.24]) + np.array([0, 0, 0.25])
         self.target_position = np.array([0.55, 0.7, 1.24]) + np.array([0, -0.1, 0.25])
         self.gripper_t = np.array([0.09507803, -0.65512755, 1.30783048]) + np.array(
@@ -166,7 +170,7 @@ class Robot:
             error_t *= 0.2 / np.linalg.norm(error_t)
         if np.linalg.norm(error_r) > 0.2:
             error_r *= 0.2 / np.linalg.norm(error_r)
-        v_ctl_t = self.JacobianPseudoinverseCtl(error_t, error_r, gain, 0.5)
+        v_ctl_t = self.JacobianPseudoinverseCtl(error_t, error_r, gain, gain/2)
         joint_positions = self.get_joint_positions()
         joint_velocities = v_ctl_t
         p.setJointMotorControlArray(
@@ -176,9 +180,9 @@ class Robot:
             targetVelocities=joint_velocities,
         )
 
-    def check_if_ee_reached(self, t_des, neccessary_distrance=0.02):
+    def check_if_ee_reached(self, t_des, neccessary_distance=0.02):
         t_curr, _ = self.ee_position()
-        return np.abs(np.linalg.norm(t_des - t_curr)) < neccessary_distrance
+        return np.abs(np.linalg.norm(t_des - t_curr)) < neccessary_distance
 
     def open_gripper(self):
         self.gripper_state = "open"
@@ -193,6 +197,7 @@ class Robot:
             jointIndices=self.gripper_idx,
             controlMode=p.VELOCITY_CONTROL,
             targetVelocities=[0.5, 0.5],
+            forces=[1, 1],
         )
 
     def check_if_gripper_open(self):
@@ -210,8 +215,8 @@ class Robot:
         )
 
     def check_if_gripper_closed(self):
-        # states = p.getJointStates(self.id, self.gripper_idx)
-        # return states[0][0] < 0.02
+        if self.check_if_gripper_is_empty():
+            return True
         contact1 = p.getContactPoints(bodyA=self.id, linkIndexA=self.gripper_idx[0])
         contact2 = p.getContactPoints(bodyA=self.id, linkIndexA=self.gripper_idx[1])
 
@@ -221,10 +226,25 @@ class Robot:
             return True
         return False
 
-    def do(self):
+    def set_grasp(self, grasp_r, grasp_t):
+        self.r_des = grasp_r
+        self.r_object = grasp_r
+        self.gripper_t = grasp_t
+
+    def check_if_gripper_is_empty(self):
+        states = p.getJointStates(self.id, self.gripper_idx)
+        return states[0][0] < 0.005
+
+    def do(self, sim):
         state = self.state
         print(state)
         currentEE = np.array(self.ee_position()[0])
+
+        if self.check_if_gripper_is_empty():
+            self.state = "restart"
+            state = "restart"
+            self.open_gripper()
+            print("Gripper is empty")
 
         if self.gripper_state == "open":
             self.open_gripper()
@@ -233,6 +253,15 @@ class Robot:
 
         if state == "start":
             self.state = "open_gripper"
+            return "start"
+
+        elif state == "restart":
+            self.r_des = DOWN_GRIPPER
+            if self.check_if_ee_reached(self.start_position):
+                self.state = "start"
+            else:
+                self.Control(self.start_position, 1)
+                self.state = "restart"
 
         elif state == "open_gripper":
             if self.check_if_gripper_open():
@@ -242,6 +271,7 @@ class Robot:
                 self.state = "open_gripper"
 
         elif state == "go_to_gripper":
+            self.r_des = self.r_object
             if self.check_if_ee_reached(self.gripper_t):
                 self.state = "close_gripper"
             else:
@@ -257,7 +287,7 @@ class Robot:
                 self.state = "close_gripper"
 
         elif state == "go_to_start":
-            self.r_des = np.array([0, 0, -1])
+            self.r_des = DOWN_GRIPPER
             if self.check_if_ee_reached(self.start_position):
                 self.state = "go_to_target"
             else:
@@ -266,7 +296,7 @@ class Robot:
                 self.state = "go_to_start"
 
         elif state == "go_to_target":
-            self.r_des = np.array([0, 1, 0.5])
+            self.r_des = TARGER_GRIPPER
             if self.check_if_ee_reached(self.target_position):
                 self.state = "deliver"
             else:

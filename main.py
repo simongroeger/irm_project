@@ -38,10 +38,17 @@ robot.print_joint_infos()
 
 
 # rgb, depth = sim.get_renders(cam_type=Camera.FIXEDCAM, debug=True)
-rgb, depth = sim.get_renders(cam_type=Camera.CUSTOMCAM, debug=True)
+# rgb, depth = sim.get_renders(cam_type=Camera.CUSTOMCAM, debug=True)
 # TODO: enable
-# grasp, grasp_t, grasp_r = sample_grasps(sim)
-# robot.target_position = grasp_t
+# grasp = None
+# while grasp is None:
+#     grasp = sample_grasps(sim)
+#     if len(grasp) == 0:
+#         continue
+#     else:
+#         grasp_t = grasp[0]
+#         grasp_r = grasp[1]
+#         robot.set_grasp(grasp_r, grasp_t)
 print("start looping")
 for time_step in range(10000):
     start = time.time()
@@ -52,7 +59,15 @@ for time_step in range(10000):
         print("kf update")
         robot.obstacle_tracking.step(rgb_custom, depth_custom)
 
-    robot.do()
+    cmd = robot.do(sim)
+    if cmd == "start":
+        grasp = sample_grasps(sim)
+        if grasp is None:
+            continue
+        else:
+            grasp_t = grasp[0]
+            grasp_r = grasp[1]
+            robot.set_grasp(grasp_r, grasp_t)
     sim.step()
 
     end = time.time()
