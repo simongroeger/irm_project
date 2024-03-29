@@ -6,8 +6,8 @@ import pybullet as p
 
 
 sim = Simulation(
-    cam_pose=np.array([0.5, 0.0, 3.5]),
-    target_pose=np.array([0.5, 1e-20, 1.0]),
+    cam_pose=np.array([0.0, -0.65, 1.7]),
+    target_pose=np.array([0, 0, -1]),
     target_object="YcbBanana",
     randomize=False,
 )
@@ -54,20 +54,22 @@ for time_step in range(10000):
     start = time.time()
 
     if time_step % (240 // 20) == 0:
-        # rgb_fixed, depth_fixed = sim.get_renders(cam_type=Camera.FIXEDCAM)
-        rgb_custom, depth_custom = sim.get_renders(cam_type=Camera.CUSTOMCAM)
+        rgb_fixed, depth_fixed = sim.get_renders(cam_type=Camera.FIXEDCAM)
+        # rgb_custom, depth_custom = sim.get_renders(cam_type=Camera.CUSTOMCAM)
         print("kf update")
-        robot.obstacle_tracking.step(rgb_custom, depth_custom)
+        robot.obstacle_tracking.step(rgb_fixed, depth_fixed)
 
     cmd = robot.do(sim)
     if cmd == "start":
-        grasp = sample_grasps(sim)
-        if grasp is None:
-            continue
-        else:
-            grasp_t = grasp[0]
-            grasp_r = grasp[1]
-            robot.set_grasp(grasp_r, grasp_t)
+        while True:
+            grasp = sample_grasps(sim)
+            if grasp is None:
+                continue
+            else:
+                grasp_t = grasp[0] - np.array([0, 0, 0.035])
+                grasp_r = grasp[1]
+                robot.set_grasp(grasp_r, grasp_t)
+                break
     sim.step()
 
     end = time.time()

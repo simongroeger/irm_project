@@ -44,33 +44,35 @@ def sample_grasps(sim):
     point_cloud = point_cloud.voxel_down_sample(0.005)
     # filter to inside the goal volume: sim.target_pose
     bounding_box = o3d.geometry.AxisAlignedBoundingBox(
-        np.array((0.0, -0.65, 1.24)) - np.array([0.15, 0.15, 0.15]),
-        np.array((0.0, -0.65, 1.24)) + np.array([0.15, 0.15, 0.15]),
+        np.array((0.1, -0.65, 1.24)) - np.array([0.30, 0.30, 0.15]),
+        np.array((0.1, -0.65, 1.24)) + np.array([0.30, 0.30, 0.15]),
     )
     point_cloud = point_cloud.crop(bounding_box)
     # o3d.visualization.draw_geometries([point_cloud])  # DEBUG
 
     # sample grasps
-    num_grasps = 15
-    num_parallel_workers = 1
+    num_grasps = 20
+    num_parallel_workers = 4
 
     sampler = GpgGraspSamplerPcl(
         0.045
     )  # Franka finger depth is actually a little less than 0.05
     safety_dist_above_table = (
-        0.04  # tweak based on how high the grasp should be from the table
+        0.00  # tweak based on how high the grasp should be from the table
     )
     print("before sampling")
     grasps, grasps_pos, grasps_rot = sampler.sample_grasps_parallel(
         point_cloud,
         num_parallel=num_parallel_workers,
         num_grasps=num_grasps,
-        max_num_samples=15,
+        max_num_samples=200,
         safety_dis_above_table=safety_dist_above_table,
         show_final_grasps=False,
     )
     print("after sampling")
-    # # DEBUG: Visualize grasps:
+    if len(grasps) == 0:
+        return None
+    # DEBUG: Visualize grasps:
     # grasps_scene = trimesh.Scene()
     # from giga.utils import visual
 
@@ -86,17 +88,25 @@ def sample_grasps(sim):
         grasps_rot = rot_mat @ np.array([0, 0, 1])
         print("Grasp rot: ", grasps_rot)
         # z needs to be between -0.8 and -1.2
-        if -1.4 < grasps_rot[2] < -0.6:
+        if -1.2 < grasps_rot[2] < -0.8:
             if -1 < grasps_rot[1] < 0.5:
                 # if -1.2 < grasps_rot[0] < -0.8:
                 print("append")
-                suitable_grasps.append((pos, grasps_rot))
+                suitable_grasps.append((pos, rot))
 
     if len(suitable_grasps) == 0:
         return None
-    best_grasp = suitable_grasps[0]
-    # for pos, rot in suitable_grasps:
-    #     if pos[2] > best_grasp[1][2]:
-    #         best_grasp = (pos, rot)
+
+    average_distance = np.inf
+    best_grasp = None
+    for pos, rot in suitable_grasps:
+        # calc average distance to other grasps
+        distance = 0
+        for pos2, _ in suitable_grasps:
+            distance += np.linalg.norm(pos - pos2)
+        distance /= len(suitable_grasps)
+        if distance < average_distance:
+            average_distance = distance
+            best_grasp = (pos, rot)
 
     return best_grasp[0], best_grasp[1]
