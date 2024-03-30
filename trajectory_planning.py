@@ -9,7 +9,7 @@ class TrajectoryPlanning:
     def __init__(self, start, goal):
         self.start = start
         self.goal = goal
-        self.first_way_point = np.array([0.3, -0.1, 1.74])
+        self.first_way_point = np.array([0.3, 0.0, 1.74])
 
 
     def getNextTarget(self, currentEE,  trajectory):
@@ -22,7 +22,7 @@ class TrajectoryPlanning:
                     min_index = i
                     min_distance = current_distance
 
-            target_index = min(len(trajectory)-1, min_index + 2)
+            target_index = min(len(trajectory)-1, min_index + 4)
             return trajectory[target_index]
         else:
             return currentEE
@@ -44,6 +44,7 @@ class TrajectoryPlanning:
                 return False
         return True
     
+
     def genTrajectory(self, trajectory_support_points):
         k = 3 if len(trajectory_support_points) > 3 else 2
         b_t, _ = scipy.interpolate.splprep([trajectory_support_points[:, 0], trajectory_support_points[:, 1], trajectory_support_points[:, 2]], k=k, s=3)
@@ -56,6 +57,7 @@ class TrajectoryPlanning:
         trajectory[:, 2] = self.goal[2]
 
         return trajectory
+
 
     def plan(self, obstacles):
 

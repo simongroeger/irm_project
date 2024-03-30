@@ -7,17 +7,15 @@ import numpy as np
 from numpy.core.multiarray import array
 import pybullet as p
 import pybullet_data
-from enum import Enum
+from camera import Camera
 
 from typing import Dict, Optional
 import matplotlib
 from filterpy.kalman import KalmanFilter
 from sklearn.cluster import KMeans
 
+import matplotlib.pyplot as plt
 
-class Camera(Enum):
-    FIXEDCAM = 1
-    CUSTOMCAM = 2
 
 
 class RedSphere:
@@ -58,6 +56,9 @@ class ObstacleTracking:
             self.kf[key].H = np.eye(4)
             self.kf[key].P = 0.2 * np.eye(4)
             self.kf[key].R = 0.05 * np.eye(4)
+
+    def get_obstacles(self):
+        return [self.kf["a"].x, self.kf["b"].x]
    
     
     def update_kf(self, ordered_cluster):
@@ -70,7 +71,7 @@ class ObstacleTracking:
     def is_pixel_red(self, px):
         return (px[0] <= 10 or px[0] >= 160) and px[1] >= 100 and px[1] >= 20
 
-    def detectRedSpheres(self, rgb_img, depth_img):
+    def detectRedSpheres(self, rgb_img, depth_img, cam_type):
         #plt.imsave("custom_img.png", rgb_custom[..., :3].astype(np.uint8))
 
         # detect red spheres: calculate position and size
@@ -127,12 +128,12 @@ class ObstacleTracking:
                 clusters.pop(0)
 
         for cluster in clusters:
-            adjusted[cluster.pos_px] = 255
+            adjusted[cluster.pos_px[0], cluster.pos_px[1]] = 255
 
-        #plt.imsave("custom_adjusted_img.png", adjusted[..., :3].astype(np.uint8))
+        plt.imsave("custom_adjusted_img.png", adjusted[..., :3].astype(np.uint8))
 
         # compute cartesian coords from pixels
-        viewMat, projMat = self.cam_matrices[Camera.CUSTOMCAM]
+        viewMat, projMat = self.cam_matrices[cam_type]
 
         v_inv = np.linalg.inv(np.array(viewMat).reshape((4,4)).T)
         p = np.array(projMat).reshape((4,4)).T
@@ -142,8 +143,11 @@ class ObstacleTracking:
             px = cluster.pos_px[1]
             py = cluster.pos_px[0]
     
+            # from https://stackoverflow.com/questions/70955660/how-to-get-depth-images-from-the-camera-in-pybullet
+            # from     depth_opengl = far * near / (far - (far - near) * depth_buffer_opengl)
+            # far and near form simulation.py line 140
             pz = depth_img[py, px]
-            z = -0.25 / (5 - 4.95 * pz)
+            z = -0.25 / (5 - 4.95 * pz) 
 
             p_radius = np.sqrt(cluster.amount_px/np.pi)
             c_radius = 0
@@ -178,7 +182,7 @@ class ObstacleTracking:
             loss_a = self.da_loss(self.kf["a"], cart_cluster[0])
             loss_b = self.da_loss(self.kf["b"], cart_cluster[0])
 
-            print("1, loss:", loss_a, loss_b)
+            #print("1, loss:", loss_a, loss_b)
 
             if loss_a < loss_b:
                 res["a"] = cart_cluster[0]
@@ -202,9 +206,9 @@ class ObstacleTracking:
 
 
             
-    def step(self, rgb_custom, depth_custom):
+    def step(self, rgb_custom, depth_custom, cam_type):
 
-        cart_cluster = self.detectRedSpheres(rgb_custom, depth_custom)
+        cart_cluster = self.detectRedSpheres(rgb_custom, depth_custom, cam_type)
 
         ordered_cluster = self.data_association(cart_cluster)
 
@@ -213,7 +217,6 @@ class ObstacleTracking:
 
         self.update_kf(ordered_cluster)
 
-        a = 4
         
 
 

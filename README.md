@@ -13,9 +13,12 @@ git clone https://github.com/RiicK3d/irobman_project.git
 cd irobman_project
 conda create -n irobman python=3.8
 conda activate irobman
-pip install pybullet matplotlib numpy
+pip install pybullet matplotlib numpy filterpy scikit-learn pyquaternion
 git clone https://github.com/eleramp/pybullet-object-models.git # inside the irobman_project folder
 pip install -e pybullet-object-models/
+git clone https://github.com/iROSA-lab/GIGA.git
+pip install -e GIGA/
+
 ```
 
 ## Task 1 (Control)

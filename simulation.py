@@ -12,7 +12,7 @@ from objects import Obstacle, Table, Box, YCBObject, Goal
 from pybullet_object_models import ycb_objects
 from typing import Optional
 import matplotlib.pyplot as plt
-from obstacle_tracking import Camera
+from camera import Camera
 
 GRAVITY = -9.8
 

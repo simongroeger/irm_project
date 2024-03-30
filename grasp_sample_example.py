@@ -1,5 +1,5 @@
 import numpy as np
-from simulation import Camera
+from camera import Camera
 from giga.perception import *
 from giga.utils.transform import Transform
 from giga.grasp_sampler import GpgGraspSamplerPcl
