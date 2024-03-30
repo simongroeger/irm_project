@@ -86,8 +86,8 @@ def sample_grasps(sim):
     for rot, pos in zip(grasps_rot, grasps_pos):
         rot_mat = np.asarray(p.getMatrixFromQuaternion(rot)).reshape(3, 3)
         grasps_rot = rot_mat @ np.array([0, 0, 1])
+        grasps_rot /= np.linalg.norm(grasps_rot)
         print("Grasp rot: ", grasps_rot)
-        # z needs to be between -0.8 and -1.2
         if -1.2 < grasps_rot[2] < -0.8:
             if -1 < grasps_rot[1] < 0.5:
                 # if -1.2 < grasps_rot[0] < -0.8:
