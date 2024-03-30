@@ -7,22 +7,36 @@ import open3d as o3d
 import trimesh
 import pybullet as p
 
+get_renders = None
+cam_matrices = None
+height = None
+width = None
 
-def sample_grasps(sim):
+def init(g, c, h, w):
+    global get_renders, cam_matrices, height, width
+    get_renders = g
+    cam_matrices = c
+    height = h
+    width = w
+
+
+def sample_grasps():
+    global get_renders, cam_matrices, height, width
+
     gripper_finger_depth = 0.05
     size = 6 * gripper_finger_depth
-    rgb, depth = sim.get_renders(cam_type=Camera.CUSTOMCAM)
+    rgb, depth = get_renders(cam_type=Camera.CUSTOMCAM)
 
-    proj_matrix = np.asarray(sim.cam_matrices[Camera.CUSTOMCAM][1]).reshape(
+    proj_matrix = np.asarray(cam_matrices[Camera.CUSTOMCAM][1]).reshape(
         [4, 4], order="F"
     )
-    view_matrix = np.asarray(sim.cam_matrices[Camera.CUSTOMCAM][0]).reshape(
+    view_matrix = np.asarray(cam_matrices[Camera.CUSTOMCAM][0]).reshape(
         [4, 4], order="F"
     )
     tran_pix_world = np.linalg.inv(np.matmul(proj_matrix, view_matrix))
 
     # create a grid with pixel coordinates and depth values
-    y, x = np.mgrid[-1 : 1 : 2 / sim.height, -1 : 1 : 2 / sim.width]
+    y, x = np.mgrid[-1 : 1 : 2 / height, -1 : 1 : 2 / width]
     y *= -1.0
     x, y, z = x.reshape(-1), y.reshape(-1), depth.reshape(-1)
     h = np.ones_like(z)
@@ -87,11 +101,11 @@ def sample_grasps(sim):
         rot_mat = np.asarray(p.getMatrixFromQuaternion(rot)).reshape(3, 3)
         grasps_rot = rot_mat @ np.array([0, 0, 1])
         grasps_rot /= np.linalg.norm(grasps_rot)
-        print("Grasp rot: ", grasps_rot)
+        #print("Grasp rot: ", grasps_rot)
         if -1.2 < grasps_rot[2] < -0.8:
             if -1 < grasps_rot[1] < 0.5:
                 # if -1.2 < grasps_rot[0] < -0.8:
-                print("append")
+                #print("append")
                 suitable_grasps.append((pos, rot))
 
     if len(suitable_grasps) == 0:

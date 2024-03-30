@@ -5,8 +5,8 @@ import pybullet as p
 import vis
 
 sim = Simulation(
-    cam_pose=np.array([0.0, -0.65, 1.7]),
-    target_pose=np.array([0, 0, -1]),
+    cam_pose=np.array([0.2, -0.65, 1.7]),
+    target_pose=np.array([0.2, 0, -1]),
     target_object="YcbBanana",
     randomize=False,
 )
@@ -14,6 +14,8 @@ sim = Simulation(
 robot = sim.get_robot()
 
 robot.print_joint_infos()
+
+vis.sim = sim
 
 print("start looping")
 
@@ -31,7 +33,7 @@ for time_step in range(10000):
         #print("kf a", robot.obstacle_tracking.kf["a"].x)
         #print("kf b", robot.obstacle_tracking.kf["b"].x)
 
-        #vis.plot_kf_error(time_step, sim, robot.obstacle_tracking)
+        #vis.plot_kf_error(time_step, robot.obstacle_tracking)
 
     cmd = robot.do(sim)
     

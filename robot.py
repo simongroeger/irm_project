@@ -8,7 +8,7 @@ from trajectory_planning import TrajectoryPlanning
 from obstacle_tracking import ObstacleTracking
 import vis
 from pyquaternion import Quaternion
-from grasp_sample_example import sample_grasps
+import grasp_sample_example
 
 
 # DOWN_GRIPPER = np.array([0, 0, -1])
@@ -39,7 +39,7 @@ class Robot:
 
     def __init__(
         self,
-        cam_matrices,
+        cam_matrices, width, height, get_renders,
         init_position: Tuple[float, float, float] = [0, 0, 0.62],
         orientation: Tuple[float, float, float] = [0, 0, 0],
         table_scaling: float = 2.0,
@@ -53,7 +53,7 @@ class Robot:
         self.r_des = DOWN_GRIPPER
         self.r_object = DOWN_GRIPPER
         self.start_position = np.array([0.2, -0.2, 1.24]) + np.array([0, 0, 0.25])
-        self.target_position = np.array([0.55, 0.7, 1.24]) + np.array([0, -0.1, 0.25])
+        self.target_position = np.array([0.575, 0.725, 1.24]) + np.array([0, -0.1, 0.25])
         self.gripper_t = np.array([0.09507803, -0.65512755, 1.30783048]) + np.array(
             [0, 0, -0.025]
         )
@@ -83,6 +83,7 @@ class Robot:
         self.trajectory_planning = TrajectoryPlanning(
             self.start_position, self.target_position
         )
+        grasp_sample_example.init(get_renders, cam_matrices, height, width)
         self.obstacle_tracking = ObstacleTracking(cam_matrices)
         p.setJointMotorControl2(
             self.id,
@@ -317,13 +318,14 @@ class Robot:
         elif self.state == "start":
             print("sampling grasps")
             while True:
-                grasp = sample_grasps(sim)
+                grasp = grasp_sample_example.sample_grasps()
                 if grasp is None:
                     continue
                 else:
                     grasp_t = grasp[0] - np.array([0, 0, 0.035])
                     grasp_r = grasp[1]
                     self.set_grasp(grasp_r, grasp_t)
+                    print("got grasp:", grasp_t, grasp_r)
                     break
             self.state = "open_gripper"
 
@@ -375,14 +377,14 @@ class Robot:
             if self.check_if_ee_reached(self.start_position):
                 self.state = "go_to_target"
             else:
-                vis.plot_trajectory([], [], self.obstacle_tracking.get_obstacles(), self.start_position, currentEE, sim.obstacles)
+                vis.plot_trajectory([], [], self.obstacle_tracking.get_obstacles(), self.start_position, currentEE)
                 self.Control(self.start_position, 1)
                 self.state = "go_to_start"
 
         elif self.state == "go_to_target":
             if self.distance_to_target(self.target_position) < 0.8:
                 self.r_des = TARGET_GRIPPER
-                print("Target Gripper activated")
+                #print("Target Gripper activated")
             else:
                 self.r_des = DOWN_GRIPPER
             if self.check_if_ee_reached(self.target_position):
@@ -392,7 +394,7 @@ class Robot:
 
                 current_target = self.trajectory_planning.getNextTarget(currentEE, trajectory)
 
-                vis.plot_trajectory(trajectory, trajectory_support_points, self.obstacle_tracking.get_obstacles(), current_target, currentEE, sim.obstacles)
+                vis.plot_trajectory(trajectory, trajectory_support_points, self.obstacle_tracking.get_obstacles(), current_target, currentEE)
 
                 if not sucess:
                     self.state = "go_to_start"
@@ -414,9 +416,10 @@ class Robot:
             self.r_des = DOWN_GRIPPER
             self.open_gripper()
             if self.check_if_ee_reached(self.start_position):
+                print("back at start, end simulation")
                 sys.exit()
             else:
-                vis.plot_trajectory([], [], self.obstacle_tracking.get_obstacles(), self.start_position, currentEE, sim.obstacles)
+                vis.plot_trajectory([], [], self.obstacle_tracking.get_obstacles(), self.start_position, currentEE)
                 self.state = "done"
                 self.Control(self.start_position, 1)
 

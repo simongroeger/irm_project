@@ -1,7 +1,7 @@
 
 import matplotlib.pyplot as plt
 
-
+sim = None
 fig, axs = plt.subplots(1,4)
 plot_arr = []
 for i in range(17):
@@ -16,7 +16,7 @@ axs[3].set_title("size")
 plot_title = ["time", "o1_x", "o1_y", "o1_z", "o1_size", "o2_x", "o2_y", "o2_z", "o2_size", "kfa_x", "kfa_y", "kfa_z", "kfa_size", "kfb_x", "kfb_y", "kfb_z", "kfb_size"]
 
 
-def plot_kf_error(time_step, sim, obstacle_tracking):
+def plot_kf_error(time_step, obstacle_tracking):
     global fig, axs, plot_arr
 
     plot_arr[0].append(time_step)
@@ -46,13 +46,13 @@ def plot_kf_error(time_step, sim, obstacle_tracking):
 
 
 
-def plot_trajectory(trajectory, trajectory_support_points, obstacle_tracking, nextTarget, currentEE, obstacle_gt):
+def plot_trajectory(trajectory, trajectory_support_points, obstacle_tracking, nextTarget, currentEE):
     plt.clf()
 
     for obstacle in obstacle_tracking:
         plt.plot(obstacle[0], obstacle[1], 'o', color='red')
 
-    for obstacle in obstacle_gt:
+    for obstacle in sim.obstacles:
         plt.plot(obstacle.get_pos()[0], obstacle.get_pos()[1], 'o', color='purple')
 
     if len(trajectory_support_points)  > 0: plt.plot(trajectory_support_points[:, 0], trajectory_support_points[:, 1], color="grey")
