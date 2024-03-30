@@ -88,7 +88,7 @@ class Simulation:
             p.getQuaternionFromEuler([0, m.pi / 2, 0]),
         )
         self.table = Table()
-        self.robot = Robot(self.cam_matrices, self.width, self.height, self.get_renders)
+        self.robot = Robot()
         self.goal = Goal(position=(0.65, 0.8, 1.24))
 
         if not self.randomize:

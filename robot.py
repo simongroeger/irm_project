@@ -3,27 +3,7 @@ import pybullet as p
 import pybullet_robots
 import numpy as np
 from typing import Tuple
-import sys
-from trajectory_planning import TrajectoryPlanning
-from obstacle_tracking import ObstacleTracking
-import vis
 from pyquaternion import Quaternion
-import grasp_sample_example
-
-
-# DOWN_GRIPPER = np.array([0, 0, -1])
-# TARGET_GRIPPER = np.array([0, 1, 0.5])
-DOWN_GRIPPER = np.array(
-    [
-        0,
-        1,
-        0,
-        0,
-    ]
-)
-TARGET_GRIPPER = np.array(
-    [0.9403202588231775, -0.1894998144336284, -0.06744521400733586, -0.2744790962602391]
-)
 
 
 class Robot:
@@ -39,7 +19,6 @@ class Robot:
 
     def __init__(
         self,
-        cam_matrices, width, height, get_renders,
         init_position: Tuple[float, float, float] = [0, 0, 0.62],
         orientation: Tuple[float, float, float] = [0, 0, 0],
         table_scaling: float = 2.0,
@@ -48,17 +27,7 @@ class Robot:
         self.pos = init_position
         self.axis_angle = orientation
         self.tscale = table_scaling
-        self.state = "restart"
-        self.gripper_state = "open"
-        self.r_des = DOWN_GRIPPER
-        self.r_object = DOWN_GRIPPER
-        self.start_position = np.array([0.2, -0.2, 1.24]) + np.array([0, 0, 0.25])
-        self.target_position = np.array([0.575, 0.725, 1.24]) + np.array([0, -0.1, 0.25])
-        self.gripper_t = np.array([0.09507803, -0.65512755, 1.30783048]) + np.array(
-            [0, 0, -0.025]
-        )
-        self.consecutive_contacts = 0
-        self.consecutive_fails = 0
+        
         if self.tscale != 1.0:
             self.pos = [self.pos[0], self.pos[1], self.pos[2] * self.tscale]
         self.ori = p.getQuaternionFromEuler(self.axis_angle)
@@ -68,6 +37,7 @@ class Robot:
         self.gripper_idx = [9, 10]
 
         self.ee_idx = 11
+        self.consecutive_contacts = 0
 
         self.id = p.loadURDF(
             "franka_panda/panda.urdf", self.pos, self.ori, useFixedBase=True
@@ -80,11 +50,6 @@ class Robot:
         for j in range(p.getNumJoints(self.id)):
             p.changeDynamics(self.id, j, linearDamping=0, angularDamping=0)
 
-        self.trajectory_planning = TrajectoryPlanning(
-            self.start_position, self.target_position
-        )
-        grasp_sample_example.init(get_renders, cam_matrices, height, width)
-        self.obstacle_tracking = ObstacleTracking(cam_matrices)
         p.setJointMotorControl2(
             self.id,
             self.gripper_idx[0],
@@ -175,7 +140,7 @@ class Robot:
         v_ctl = np.dot(jac_pinv, gain * u)
         return v_ctl
 
-    def Control(self, t_des, gain):
+    def control(self, t_des, r_des, gain):
         # control error
         u = np.zeros(6)
 
@@ -186,21 +151,21 @@ class Robot:
 
         # rotational error
         q_d = Quaternion(
-            x=self.r_des[0],
-            y=self.r_des[1],
-            z=self.r_des[2],
-            w=self.r_des[3],
+            x=r_des[0],
+            y=r_des[1],
+            z=r_des[2],
+            w=r_des[3],
         ).normalised
         q_e = Quaternion(x=r_curr[0], y=r_curr[1], z=r_curr[2], w=r_curr[3]).normalised
         q_r = q_d * q_e.conjugate
         u[3:] = q_r.elements[1:] * np.sign(q_r.elements[0])
 
-        # limit error to limit resulting joint velocities
-        if np.linalg.norm(u) > 0.2:
-            u *= 0.2 / np.linalg.norm(u)
-
-
         v_ctl_t = self.JacobianPseudoinverseCtl(u, gain, gain * 0.8)
+
+        # limit joint velocities
+        if np.linalg.norm(v_ctl_t) > 0.8:
+            v_ctl_t *= 0.8 / np.linalg.norm(v_ctl_t)
+
         # joint_positions = self.get_joint_positions()
         joint_velocities = v_ctl_t
         p.setJointMotorControlArray(
@@ -216,14 +181,14 @@ class Robot:
 
     def check_if_ee_is_stoped(self):
         joint_velocities = self.get_joint_velocities()
-        return np.linalg.norm(joint_velocities) < 0.01
+        return np.linalg.norm(joint_velocities) < 0.02
 
     def check_if_ee_reached_orientation(self, r_des, neccessary_distance=0.2):
         _, r_curr = self.ee_position()
         q_d = Quaternion(x=r_des[0], y=r_des[1], z=r_des[2], w=r_des[3]).normalised
         q_e = Quaternion(x=r_curr[0], y=r_curr[1], z=r_curr[2], w=r_curr[3]).normalised
         q_r = q_d * q_e.conjugate
-        print("orientation error", np.abs(np.linalg.norm(q_r.elements[1:])))
+        #print("orientation error", np.abs(np.linalg.norm(q_r.elements[1:])))
         return np.abs(np.linalg.norm(q_r.elements[1:])) < neccessary_distance
 
     def distance_to_target(self, t_des):
@@ -232,7 +197,6 @@ class Robot:
         return np.linalg.norm(t_des - t_curr)
 
     def open_gripper(self):
-        self.gripper_state = "open"
         # p.setJointMotorControlArray(
         #     self.id,
         #     jointIndices=self.gripper_idx,
@@ -253,7 +217,6 @@ class Robot:
         return states[0][0] > 0.04
 
     def close_gripper(self):
-        self.gripper_state = "close"
         p.setJointMotorControlArray(
             self.id,
             jointIndices=self.gripper_idx,
@@ -277,151 +240,10 @@ class Robot:
             self.consecutive_contacts = 0
 
         return self.consecutive_contacts > 120
-
-    def set_grasp(self, grasp_r, grasp_t):
-        self.r_des = grasp_r
-        self.r_object = grasp_r
-        self.gripper_t = grasp_t
+        
 
     def check_if_gripper_is_empty(self):
         states = p.getJointStates(self.id, self.gripper_idx)
         return states[0][0] < 0.0005
 
-    def do(self):
-
-        last_state = self.state
-        t, r = self.ee_position()
-        currentEE = np.array(self.ee_position()[0])
-        #print(self.state, r, self.r_des)
-
-        if self.check_if_gripper_is_empty():
-            self.state = "restart"
-            self.open_gripper()
-            print("Gripper is empty")
-
-        if self.gripper_state == "open":
-            self.open_gripper()
-        else:
-            self.close_gripper()
-
-        if self.state == "restart":
-            self.r_des = DOWN_GRIPPER
-            if (
-                self.check_if_ee_reached(self.start_position)
-                and self.check_if_ee_is_stoped()
-            ):
-                self.state = "start"
-            else:
-                self.Control(self.start_position, 1)
-                self.state = "restart"
-
-        elif self.state == "start":
-            print("sampling grasps")
-            while True:
-                grasp = grasp_sample_example.sample_grasps()
-                if grasp is None:
-                    continue
-                else:
-                    grasp_t = grasp[0] - np.array([0, 0, 0.035])
-                    grasp_r = grasp[1]
-                    self.set_grasp(grasp_r, grasp_t)
-                    print("got grasp:", grasp_t, grasp_r)
-                    break
-            self.state = "open_gripper"
-
-        elif self.state == "open_gripper":
-            if self.check_if_gripper_open():
-                self.state = "go_to_preposition_gripper"
-            else:
-                self.open_gripper()
-                self.state = "open_gripper"
-
-        elif self.state == "go_to_preposition_gripper":
-            self.r_des = self.r_object
-            preposition = self.gripper_t + np.asarray(
-                p.getMatrixFromQuaternion(self.r_object)
-            ).reshape(3, 3) @ np.array([0, 0, -0.1])
-            if self.check_if_ee_reached(
-                preposition
-            ) and self.check_if_ee_reached_orientation(self.r_des):
-                self.state = "go_to_gripper"
-            else:
-                self.Control(preposition, 2)
-                self.state = "go_to_preposition_gripper"
-
-        elif self.state == "go_to_gripper":
-            self.r_des = self.r_object
-            if self.check_if_ee_reached(self.gripper_t):
-                self.state = "close_gripper"
-            else:
-                if 0.02 < self.distance_to_target(self.gripper_t) < 0.06:
-                    self.consecutive_fails += 1
-                else:
-                    self.consecutive_fails = 0
-                if self.consecutive_fails > 100:
-                    self.state = "restart"
-                else:
-                    self.Control(self.gripper_t, 1)
-                    self.state = "go_to_gripper"
-
-        elif self.state == "close_gripper":
-            if self.check_if_gripper_closed():
-                self.state = "go_to_start"
-            else:
-                self.close_gripper()
-                self.Control(self.gripper_t, 1)
-                self.state = "close_gripper"
-
-        elif self.state == "go_to_start":
-            self.r_des = DOWN_GRIPPER
-            if self.check_if_ee_reached(self.start_position):
-                self.state = "go_to_target"
-            else:
-                vis.plot_trajectory([], [], self.obstacle_tracking.get_obstacles(), self.start_position, currentEE)
-                self.Control(self.start_position, 1)
-                self.state = "go_to_start"
-
-        elif self.state == "go_to_target":
-            if self.distance_to_target(self.target_position) < 0.8:
-                self.r_des = TARGET_GRIPPER
-                #print("Target Gripper activated")
-            else:
-                self.r_des = DOWN_GRIPPER
-            if self.check_if_ee_reached(self.target_position):
-                self.state = "deliver"
-            else:
-                sucess, trajectory, trajectory_support_points = self.trajectory_planning.plan(self.obstacle_tracking.get_obstacles())
-
-                current_target = self.trajectory_planning.getNextTarget(currentEE, trajectory)
-
-                vis.plot_trajectory(trajectory, trajectory_support_points, self.obstacle_tracking.get_obstacles(), current_target, currentEE)
-
-                if not sucess:
-                    self.state = "go_to_start"
-                else:
-                    #print("current Target", current_target, " dist", np.linalg.norm(current_target - currentEE), ": ", current_target - currentEE)
-                    self.Control(current_target, 4)
-                    self.state = "go_to_target"
-
-        elif self.state == "deliver":
-            print("check if gripper is open", self.check_if_gripper_open())
-            if self.check_if_gripper_open():
-                self.state = "done"
-            else:
-                self.Control(self.target_position, 2)
-                self.open_gripper()
-                self.state = "deliver"
-
-        elif self.state == "done":
-            self.r_des = DOWN_GRIPPER
-            self.open_gripper()
-            if self.check_if_ee_reached(self.start_position):
-                print("back at start, end simulation")
-                sys.exit()
-            else:
-                vis.plot_trajectory([], [], self.obstacle_tracking.get_obstacles(), self.start_position, currentEE)
-                self.state = "done"
-                self.Control(self.start_position, 1)
-
-        if self.state != last_state:
-            print(last_state, "->", self.state)
+    

@@ -33,7 +33,8 @@ class RedSphere:
 
 class ObstacleTracking:
 
-    def __init__(self, cam_matrices):
+    def __init__(self, get_renders, cam_matrices):
+        self.get_renders = get_renders
         self.cam_matrices = cam_matrices
         
         self.kf: Dict[str, KalmanFilter] = {}
@@ -206,9 +207,11 @@ class ObstacleTracking:
 
 
             
-    def step(self, rgb_custom, depth_custom, cam_type):
+    def step(self):
+        cam_type = Camera.FIXEDCAM
+        rgb_img, depth_img = self.get_renders(cam_type=cam_type)
 
-        cart_cluster = self.detectRedSpheres(rgb_custom, depth_custom, cam_type)
+        cart_cluster = self.detectRedSpheres(rgb_img, depth_img, cam_type)
 
         ordered_cluster = self.data_association(cart_cluster)
 
