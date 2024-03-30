@@ -5,8 +5,8 @@ import pybullet as p
 import vis
 
 sim = Simulation(
-    cam_pose=np.array([0.2, -0.65, 1.7]),
-    target_pose=np.array([0.2, 0, -1]),
+    cam_pose=np.array([0.0, -0.65, 1.7]),
+    target_pose=np.array([0, 0, -1]),
     target_object="YcbBanana",
     randomize=False,
 )
