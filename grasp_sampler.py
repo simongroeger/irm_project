@@ -100,7 +100,7 @@ class GraspSampler:
             if -1.2 < grasps_rot[2] < -0.8:
                 if -1 < grasps_rot[1] < 0.5:
                     # if -1.2 < grasps_rot[0] < -0.8:
-                    #print("append")
+                    print("append", pos)
                     suitable_grasps.append((pos, rot))
 
         if len(suitable_grasps) == 0:

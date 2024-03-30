@@ -181,7 +181,7 @@ class Robot:
 
     def check_if_ee_is_stoped(self):
         joint_velocities = self.get_joint_velocities()
-        return np.linalg.norm(joint_velocities) < 0.02
+        return np.linalg.norm(joint_velocities) < 0.01
 
     def check_if_ee_reached_orientation(self, r_des, neccessary_distance=0.2):
         _, r_curr = self.ee_position()
