@@ -287,7 +287,7 @@ class Robot:
         states = p.getJointStates(self.id, self.gripper_idx)
         return states[0][0] < 0.0005
 
-    def do(self, sim):
+    def do(self):
 
         last_state = self.state
         t, r = self.ee_position()

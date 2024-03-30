@@ -35,7 +35,7 @@ for time_step in range(10000):
 
         #vis.plot_kf_error(time_step, robot.obstacle_tracking)
 
-    cmd = robot.do(sim)
+    cmd = robot.do()
     
     sim.step()
 
