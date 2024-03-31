@@ -28,7 +28,6 @@ class Project():
 
         self.start_position = np.array([0.2, -0.2, 1.24]) + np.array([0, 0, 0.25])
         self.target_position = np.array([0.575, 0.725, 1.24]) + np.array([0, -0.1, 0.25])
-        self.kf_hz = 60
         
         self.robot : Robot = robot
         self.vis = vis
@@ -49,7 +48,7 @@ class Project():
         currentEE = np.array(self.robot.ee_position()[0])
         #print(self.state, self.ee_position()[1], self.r_des)
 
-        if time_step % (240 // self.kf_hz) == 0: # kalman filter only runs 40hz
+        if time_step % (240 // self.obstacle_tracking.measurement_hz) == 0: # kalman filter only runs 40hz
             self.obstacle_tracking.step()
             #self.vis.plot_kf_error(time_step, self.obstacle_tracking)
 
@@ -58,6 +57,9 @@ class Project():
             #    print("Ostacle pos", obstacle.get_pos(), obstacle.scaling)
             #print("kf a", robot.obstacle_tracking.kf["a"].x)
             #print("kf b", robot.obstacle_tracking.kf["b"].x)
+        else:
+            self.obstacle_tracking.prediction_step()
+
 
 
         if self.robot.check_if_gripper_is_empty():

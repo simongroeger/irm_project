@@ -36,6 +36,8 @@ class ObstacleTracking:
     def __init__(self, get_renders, cam_matrices):
         self.get_renders = get_renders
         self.cam_matrices = cam_matrices
+
+        self.measurement_hz = 40
         
         self.kf: Dict[str, KalmanFilter] = {}
         self.kf["a"] = KalmanFilter(dim_x=4, dim_z = 4)
@@ -43,6 +45,14 @@ class ObstacleTracking:
 
         #init kf
         self.init_kf()
+
+        self.last_state: Dict[str, None] = {}
+        self.last_state["a"] = np.zeros(4)
+        self.last_state["b"] = np.zeros(4)
+
+        self.diff_to_last: Dict[str, None] = {}
+        self.diff_to_last["a"] = np.zeros(4)
+        self.diff_to_last["b"] = np.zeros(4)
 
         self.da_weight_position = 1
         self.da_weight_size = 1
@@ -57,6 +67,8 @@ class ObstacleTracking:
             self.kf[key].H = np.eye(4)
             self.kf[key].P = 0.2 * np.eye(4)
             self.kf[key].R = 0.05 * np.eye(4)
+            self.kf[key].B = self.measurement_hz / 240 * np.eye(4)
+            self.kf[key].B[3,3] = 0
 
     def get_obstacles(self):
         return [self.kf["a"].x, self.kf["b"].x]
@@ -65,8 +77,10 @@ class ObstacleTracking:
     def update_kf(self, ordered_cluster):
 
         for key in ordered_cluster:
-            self.kf[key].predict()
+            self.kf[key].predict(u=self.diff_to_last[key])
             self.kf[key].update(ordered_cluster[key].get_measurement())
+            self.diff_to_last[key] = self.kf[key].x - self.last_state[key]
+            self.last_state[key] = self.kf[key].x
 
 
     def is_pixel_red(self, px):
@@ -220,6 +234,10 @@ class ObstacleTracking:
 
         self.update_kf(ordered_cluster)
 
+
+    def prediction_step(self):
+        for key in self.kf:
+            self.kf[key].predict(u=self.diff_to_last[key])
         
 
 
