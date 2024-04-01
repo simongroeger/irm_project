@@ -40,54 +40,40 @@ class ObstacleTracking:
         self.measurement_hz = 40
         
         self.kf: Dict[str, KalmanFilter] = {}
-        self.kf["a"] = KalmanFilter(dim_x=4, dim_z = 4)
-        self.kf["b"] = KalmanFilter(dim_x=4, dim_z = 4)
+        self.kf["small"] = KalmanFilter(dim_x=4, dim_z = 4)
+        self.kf["big"] = KalmanFilter(dim_x=4, dim_z = 4)
 
         #init kf
         self.init_kf()
-
-        self.last_state: Dict[str, None] = {}
-        self.last_state["a"] = np.zeros(4)
-        self.last_state["b"] = np.zeros(4)
-
-        self.diff_to_last: Dict[str, None] = {}
-        self.diff_to_last["a"] = np.zeros(4)
-        self.diff_to_last["b"] = np.zeros(4)
 
         self.da_weight_position = 1
         self.da_weight_size = 1
 
 
     def init_kf(self):
-        self.kf["a"].x = np.array([0, 0, 0, 0.1])
-        self.kf["b"].x = np.array([0, 0, 0, 0.15])
+        self.kf["small"].x = np.array([0, 0, 0, 0.1])
+        self.kf["big"].x = np.array([0, 0, 0, 0.15])
 
         for key in self.kf:
             self.kf[key].F = np.eye(4)
             self.kf[key].H = np.eye(4)
             self.kf[key].P = 0.2 * np.eye(4)
             self.kf[key].R = 0.05 * np.eye(4)
-            self.kf[key].B = self.measurement_hz / 240 * np.eye(4)
-            self.kf[key].B[3,3] = 0
 
     def get_obstacles(self):
-        return [self.kf["a"].x, self.kf["b"].x]
+        return [self.kf["small"].x, self.kf["big"].x]
    
     
     def update_kf(self, ordered_cluster):
-
         for key in ordered_cluster:
-            self.kf[key].predict(u=self.diff_to_last[key])
+            self.kf[key].predict()
             self.kf[key].update(ordered_cluster[key].get_measurement())
-            self.diff_to_last[key] = self.kf[key].x - self.last_state[key]
-            self.last_state[key] = self.kf[key].x
-
 
     def is_pixel_red(self, px):
         return (px[0] <= 10 or px[0] >= 160) and px[1] >= 100 and px[1] >= 20
 
     def detectRedSpheres(self, rgb_img, depth_img, cam_type):
-        #plt.imsave("custom_img.png", rgb_custom[..., :3].astype(np.uint8))
+        plt.imsave("custom_img.png", rgb_img[..., :3].astype(np.uint8))
 
         # detect red spheres: calculate position and size
         hsv = (matplotlib.colors.rgb_to_hsv(rgb_img[..., :3] / 255.0) * 255).astype(np.uint8)
@@ -98,12 +84,13 @@ class ObstacleTracking:
         for y in range(rgb_img.shape[0]):
             for x in range(rgb_img.shape[1]):
                 h = hsv[y, x, 0]
-                if h <= 10 or h >= 160:
+                if h <= 5:
                     s = hsv[y, x, 1]
                     v = hsv[y, x, 2]
                     if s >= 100 and v >= 20:
                         red_px.append([y, x])
                         adjusted[y, x] = 100
+                        #print(y,x,h,s,v)
 
         if len(red_px) == 0:
             print("no red px found")
@@ -166,7 +153,7 @@ class ObstacleTracking:
 
             p_radius = np.sqrt(cluster.amount_px/np.pi)
             c_radius = 0
-            for i in range(3):
+            for i in range(10):
                 w = p[2,2]*(z - c_radius) + p[2,3]
                 c_radius = p_radius / 128.0 * w / p[0,0]
             z -= c_radius
@@ -194,28 +181,24 @@ class ObstacleTracking:
         res = {}
 
         if len(cart_cluster) == 1:
-            loss_a = self.da_loss(self.kf["a"], cart_cluster[0])
-            loss_b = self.da_loss(self.kf["b"], cart_cluster[0])
-
-            #print("1, loss:", loss_a, loss_b)
+            loss_a = self.da_loss(self.kf["small"], cart_cluster[0])
+            loss_b = self.da_loss(self.kf["big"], cart_cluster[0])
 
             if loss_a < loss_b:
-                res["a"] = cart_cluster[0]
+                res["small"] = cart_cluster[0]
             else:
-                res["b"] = cart_cluster[0]
+                res["big"] = cart_cluster[0]
 
         if len(cart_cluster) == 2:
-            loss_0_a = self.da_loss(self.kf["a"], cart_cluster[0]) + self.da_loss(self.kf["b"], cart_cluster[1])
-            loss_1_a = self.da_loss(self.kf["a"], cart_cluster[1]) + self.da_loss(self.kf["b"], cart_cluster[0])
+            loss_0_a = self.da_loss(self.kf["small"], cart_cluster[0]) + self.da_loss(self.kf["big"], cart_cluster[1])
+            loss_1_a = self.da_loss(self.kf["small"], cart_cluster[1]) + self.da_loss(self.kf["big"], cart_cluster[0])
             
-            #print("2, loss:", loss_0_a, loss_1_a)
-
             if loss_0_a < loss_1_a:
-                res["a"] = cart_cluster[0]
-                res["b"] = cart_cluster[1]
+                res["small"] = cart_cluster[0]
+                res["big"] = cart_cluster[1]
             else:
-                res["a"] = cart_cluster[1]
-                res["b"] = cart_cluster[0]
+                res["small"] = cart_cluster[1]
+                res["big"] = cart_cluster[0]
 
         return res
 
@@ -233,13 +216,6 @@ class ObstacleTracking:
         #    print(k, ordered_cluster[k])
 
         self.update_kf(ordered_cluster)
-
-
-    def prediction_step(self):
-        for key in self.kf:
-            self.kf[key].predict(u=self.diff_to_last[key])
-        
-
 
 
         

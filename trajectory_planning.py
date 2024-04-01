@@ -9,21 +9,27 @@ class TrajectoryPlanning:
     def __init__(self, start, goal):
         self.start = start
         self.goal = goal
-        self.first_way_point = np.array([0.3, 0.0, 1.74])
+        self.first_way_point = np.array([0.25, 0.0, goal[2]])
+        self.second_way_point = np.array([0.25, 0.2, goal[2]])
+        self.lookahead_distance = 0.07
 
 
-    def getNextTarget(self, currentEE,  trajectory):
+    def getReferencePoint(self, currentEE,  trajectory):
         if len(trajectory) > 1:
             min_distance = 0
-            min_index = -1
+            clostest_index = -1
             for i, elem in enumerate(trajectory):
                 current_distance = np.abs(np.linalg.norm(elem - currentEE))
-                if min_index == -1 or current_distance < min_distance:
-                    min_index = i
+                if clostest_index == -1 or current_distance < min_distance:
+                    clostest_index = i
                     min_distance = current_distance
 
-            target_index = min(len(trajectory)-1, min_index + 4)
-            return trajectory[target_index]
+            reference_index = clostest_index
+            for i in range(clostest_index+1, len(trajectory)):
+                reference_index = i
+                if np.linalg.norm(trajectory[i] - currentEE) > self.lookahead_distance:
+                    break
+            return trajectory[reference_index]
         else:
             return currentEE
         
@@ -65,7 +71,7 @@ class TrajectoryPlanning:
         obstacle2 = obstacles[1][:3]
 
         # direct trajectory
-        trajectory_support_points = np.array([self.start, self.first_way_point, self.goal])
+        trajectory_support_points = np.array([self.start, self.first_way_point, self.second_way_point, self.goal])
         trajectory = self.genTrajectory(trajectory_support_points)
 
         if self.checkTrajectory(trajectory, obstacle1, obstacle2):
@@ -73,7 +79,7 @@ class TrajectoryPlanning:
     
         
         obstacle_middle = 0.5*(obstacle1 + obstacle2)
-        trajectory_support_points = np.array([self.start, self.first_way_point, obstacle_middle, self.goal])
+        trajectory_support_points = np.array([self.start, self.first_way_point, self.second_way_point, obstacle_middle, self.goal])
         trajectory = self.genTrajectory(trajectory_support_points)
 
         if self.checkTrajectory(trajectory, obstacle1, obstacle2):
@@ -87,9 +93,9 @@ class TrajectoryPlanning:
         path2 = obstacle_middle + 0.2 * obstacle_vertical
 
         if np.linalg.norm(self.start - path1) < np.linalg.norm(self.start - path2):
-            trajectory_support_points = np.array([self.start, self.first_way_point, path1, obstacle_middle, self.goal])
+            trajectory_support_points = np.array([self.start, self.first_way_point, self.second_way_point, path1, obstacle_middle, self.goal])
         else:
-            trajectory_support_points = np.array([self.start, self.first_way_point, path2, obstacle_middle, self.goal])
+            trajectory_support_points = np.array([self.start, self.first_way_point, self.second_way_point, path2, obstacle_middle, self.goal])
 
         trajectory = self.genTrajectory(trajectory_support_points)
 

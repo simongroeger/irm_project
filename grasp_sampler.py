@@ -60,7 +60,7 @@ class GraspSampler:
         # o3d.visualization.draw_geometries([point_cloud])  # DEBUG
 
         # sample grasps
-        num_grasps = 50
+        num_grasps = 100
         num_parallel_workers = 4
 
         sampler = GpgGraspSamplerPcl(
@@ -74,7 +74,7 @@ class GraspSampler:
             point_cloud,
             num_parallel=num_parallel_workers,
             num_grasps=num_grasps,
-            max_num_samples=500,
+            max_num_samples=1000,
             safety_dis_above_table=safety_dist_above_table,
             show_final_grasps=False,
         )

@@ -25,9 +25,8 @@ TARGET_GRIPPER = np.array(
 class Project:
     def __init__(self, robot, cam_matrices, get_renders, height, width, vis) -> None:
 
-        self.start_position = np.array([0.2, -0.2, 1.24]) + np.array([0, 0, 0.25])
-        self.target_position = np.array([0.575, 0.725, 1.24]) + np.array([-0.1, -0.1, 0.25])
-
+        self.start_position = np.array([0.2, -0.2, 1.49])
+        self.target_position = np.array([0.525, 0.675, 1.49])
 
         self.robot: Robot = robot
         self.vis = vis
@@ -37,7 +36,7 @@ class Project:
         self.grasp_sampler = GraspSampler(get_renders, cam_matrices, height, width)
         self.obstacle_tracking = ObstacleTracking(get_renders, cam_matrices)
 
-        self.state = "restart"
+        self.state =  "restart"
         self.gripper_state = "open"
         self.r_object = None
         self.gripper_t = None
@@ -50,26 +49,10 @@ class Project:
         currentEE = np.array(self.robot.ee_position()[0])
         # print(self.state, self.ee_position()[1], self.r_des)
 
-        if (
-            time_step % (240 // self.obstacle_tracking.measurement_hz) == 0
-        ):  # kalman filter only runs 40hz
+        if (time_step % (240 // self.obstacle_tracking.measurement_hz) == 0):  # kalman filter only runs 40hz
             self.obstacle_tracking.step()
-            # self.vis.plot_kf_error(time_step, self.obstacle_tracking)
-
-            # print("kf update")
-            # for j, obstacle in enumerate(sim.obstacles):
-            #    print("Ostacle pos", obstacle.get_pos(), obstacle.scaling)
-            # print("kf a", robot.obstacle_tracking.kf["a"].x)
-            # print("kf b", robot.obstacle_tracking.kf["b"].x)
-        else:
-            self.obstacle_tracking.prediction_step()
-
-        # p.addUserDebugLine(self.obstacle_tracking.kf["a"].x[:3], self.obstacle_tracking.kf["b"].x[:3], [0, 0, 1], lifeTime=0.1)
-
-        #if self.robot.check_if_gripper_is_empty():
-        #    self.state = "restart"
-        #    self.gripper_state = "open"
-        #    print("Gripper is empty")
+            #self.vis.plot_kf_error(time_step, self.obstacle_tracking)
+        
 
         if self.gripper_state == "open":
             self.robot.open_gripper()
@@ -169,7 +152,7 @@ class Project:
                         self.obstacle_tracking.get_obstacles()
                     )
                 )
-                current_target = self.trajectory_planning.getNextTarget(
+                current_target = self.trajectory_planning.getReferencePoint(
                     currentEE, trajectory
                 )
 
@@ -185,7 +168,7 @@ class Project:
                     )
                     #for i in range(1, len(trajectory)):
                     #    p.addUserDebugLine(trajectory[i-1], trajectory[i], [0, 1, 0], lifeTime=2.0)
-                    if self.robot.distance_to_target(self.target_position) < 0.8:
+                    if self.robot.distance_to_target(self.target_position) < 0.4:
                         r_des = TARGET_GRIPPER
                     else:
                         r_des = DOWN_GRIPPER
@@ -204,7 +187,7 @@ class Project:
                 and self.robot.check_if_ee_is_stopped()
             ):
                 print("back at start, end simulation")
-                sys.exit()
+                #sys.exit()
             else:
                 self.vis.plot_trajectory(
                     [],
