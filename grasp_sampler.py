@@ -54,13 +54,13 @@ class GraspSampler:
         # filter to inside the goal volume: sim.target_pose
         bounding_box = o3d.geometry.AxisAlignedBoundingBox(
             np.array((0.1, -0.65, 1.24)) - np.array([0.30, 0.30, -0.02]),
-            np.array((0.1, -0.65, 1.24)) + np.array([0.30, 0.30, 0.20]),
+            np.array((0.1, -0.65, 1.24)) + np.array([0.30, 0.30, 0.40]),
         )
         point_cloud = point_cloud.crop(bounding_box)
         # o3d.visualization.draw_geometries([point_cloud])  # DEBUG
 
         # sample grasps
-        num_grasps = 40
+        num_grasps = 50
         num_parallel_workers = 4
 
         sampler = GpgGraspSamplerPcl(
@@ -74,7 +74,7 @@ class GraspSampler:
             point_cloud,
             num_parallel=num_parallel_workers,
             num_grasps=num_grasps,
-            max_num_samples=200,
+            max_num_samples=500,
             safety_dis_above_table=safety_dist_above_table,
             show_final_grasps=False,
         )

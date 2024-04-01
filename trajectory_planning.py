@@ -29,7 +29,7 @@ class TrajectoryPlanning:
         
 
     def checkTrajectory(self, trajectory, obstacle1, obstacle2):
-        min_distance_obstacle = 0.4
+        min_distance_obstacle = 0.3
         for p in trajectory:
             if np.linalg.norm(obstacle1 - p) < min_distance_obstacle:
                 #print("wait for suitable trajectory, obstacle1 is too close to trajectory", np.linalg.norm(obstacle1 - p))

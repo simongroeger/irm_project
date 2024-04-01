@@ -25,8 +25,9 @@ TARGET_GRIPPER = np.array(
 class Project:
     def __init__(self, robot, cam_matrices, get_renders, height, width, vis) -> None:
 
-        self.start_position = np.array([0.2, -0.2, 1.24]) + np.array([0, 0, 0.4])
-        self.target_position = np.array([0.5, 0.65, 1.24]) + np.array([0, 0, 0.4])
+        self.start_position = np.array([0.2, -0.2, 1.24]) + np.array([0, 0, 0.25])
+        self.target_position = np.array([0.575, 0.725, 1.24]) + np.array([-0.1, -0.1, 0.25])
+
 
         self.robot: Robot = robot
         self.vis = vis
@@ -129,7 +130,7 @@ class Project:
                     self.robot.control(self.gripper_t, self.r_object, 1)
 
         elif self.state == "close_gripper":
-            if self.robot.check_if_gripper_closed() and self.steps_in_state > 240:
+            if self.robot.check_if_gripper_closed() and self.steps_in_state > 240/5:
                 self.state = "lift_closed_gripper"
             else:
                 self.gripper_state = "close"
@@ -160,7 +161,7 @@ class Project:
                 self.robot.control(self.start_position, DOWN_GRIPPER, 1)
 
         elif self.state == "go_to_target":
-            if self.robot.check_if_ee_reached(self.target_position):
+            if self.robot.check_if_ee_reached(self.target_position, neccessary_distance=0.05):
                 self.state = "deliver"
             else:
                 sucess, trajectory, trajectory_support_points = (
