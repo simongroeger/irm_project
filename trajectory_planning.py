@@ -32,15 +32,15 @@ class TrajectoryPlanning:
         min_distance_obstacle = 0.4
         for p in trajectory:
             if np.linalg.norm(obstacle1 - p) < min_distance_obstacle:
-                print("wait for suitable trajectory, obstacle1 is too close to trajectory", p, obstacle1)
+                #print("wait for suitable trajectory, obstacle1 is too close to trajectory", np.linalg.norm(obstacle1 - p))
                 return False
 
             if np.linalg.norm(obstacle2 - p) < min_distance_obstacle:
-                print("wait for suitable trajectory, obstacle2 is too close to trajectory", p, obstacle2)
+                #print("wait for suitable trajectory, obstacle2 is too close to trajectory", np.linalg.norm(obstacle2 - p))
                 return False
             
             if np.linalg.norm(p[:2]) < 0.1:
-                print("wait till suitable trajectory, to close to robot base", p)
+                #print("wait till suitable trajectory, to close to robot base", np.linalg.norm(p[:2]))
                 return False
         return True
     

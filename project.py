@@ -25,10 +25,8 @@ TARGET_GRIPPER = np.array(
 class Project:
     def __init__(self, robot, cam_matrices, get_renders, height, width, vis) -> None:
 
-        self.start_position = np.array([0.2, -0.2, 1.24]) + np.array([0, 0, 0.25])
-        self.target_position = np.array([0.575, 0.725, 1.24]) + np.array(
-            [0, -0.1, 0.25]
-        )
+        self.start_position = np.array([0.2, -0.2, 1.24]) + np.array([0, 0, 0.4])
+        self.target_position = np.array([0.5, 0.65, 1.24]) + np.array([0, 0, 0.4])
 
         self.robot: Robot = robot
         self.vis = vis
@@ -43,6 +41,8 @@ class Project:
         self.r_object = None
         self.gripper_t = None
         self.consecutive_fails = 0
+
+        self.steps_in_state = 0
 
     def step(self, time_step):
         last_state = self.state
@@ -63,10 +63,12 @@ class Project:
         else:
             self.obstacle_tracking.prediction_step()
 
-        if self.robot.check_if_gripper_is_empty():
-            self.state = "restart"
-            self.gripper_state = "open"
-            print("Gripper is empty")
+        # p.addUserDebugLine(self.obstacle_tracking.kf["a"].x[:3], self.obstacle_tracking.kf["b"].x[:3], [0, 0, 1], lifeTime=0.1)
+
+        #if self.robot.check_if_gripper_is_empty():
+        #    self.state = "restart"
+        #    self.gripper_state = "open"
+        #    print("Gripper is empty")
 
         if self.gripper_state == "open":
             self.robot.open_gripper()
@@ -127,11 +129,22 @@ class Project:
                     self.robot.control(self.gripper_t, self.r_object, 1)
 
         elif self.state == "close_gripper":
-            if self.robot.check_if_gripper_closed():
-                self.state = "go_to_start"
+            if self.robot.check_if_gripper_closed() and self.steps_in_state > 240:
+                self.state = "lift_closed_gripper"
             else:
                 self.gripper_state = "close"
                 self.robot.control(self.gripper_t, self.r_object, 1)
+
+        elif self.state == "lift_closed_gripper":
+            if self.robot.check_if_gripper_is_empty():
+                    self.state = "restart"
+                    self.gripper_state = "open"
+                    print("Gripper is empty")
+            
+            if self.robot.check_if_ee_reached(self.gripper_t + np.array([0, 0, 0.25])):
+                self.state = "go_to_start"
+            else:
+                self.robot.control(self.gripper_t + np.array([0, 0, 0.25]), self.r_object, 1)
 
         elif self.state == "go_to_start":
             if self.robot.check_if_ee_reached(self.start_position):
@@ -169,6 +182,8 @@ class Project:
                         current_target,
                         currentEE,
                     )
+                    #for i in range(1, len(trajectory)):
+                    #    p.addUserDebugLine(trajectory[i-1], trajectory[i], [0, 1, 0], lifeTime=2.0)
                     if self.robot.distance_to_target(self.target_position) < 0.8:
                         r_des = TARGET_GRIPPER
                     else:
@@ -177,12 +192,7 @@ class Project:
 
         elif self.state == "deliver":
             self.gripper_state = "open"
-            print(
-                "check if gripper is open",
-                self.robot.check_if_gripper_open(),
-                not self.robot.check_if_gripper_closed(),
-            )
-            if not self.robot.check_if_gripper_closed():
+            if self.robot.check_if_gripper_open() and self.steps_in_state > 240/5:
                 self.state = "done"
             else:
                 self.robot.control(self.target_position, TARGET_GRIPPER, 2)
@@ -206,3 +216,7 @@ class Project:
 
         if self.state != last_state:
             print(last_state, "->", self.state)
+            self.steps_in_state = 0
+        else:
+            self.steps_in_state += 1
+            

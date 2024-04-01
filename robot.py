@@ -163,8 +163,8 @@ class Robot:
         v_ctl_t = self.JacobianPseudoinverseCtl(u, gain, gain * 0.8)
 
         # limit joint velocities
-        if np.linalg.norm(v_ctl_t) > 0.8:
-            v_ctl_t *= 0.8 / np.linalg.norm(v_ctl_t)
+        if np.max(v_ctl_t) > 0.4:
+            v_ctl_t *= 0.4 / np.max(v_ctl_t)
 
         # joint_positions = self.get_joint_positions()
         joint_velocities = v_ctl_t
@@ -213,7 +213,7 @@ class Robot:
 
     def check_if_gripper_open(self):
         states = p.getJointStates(self.id, self.gripper_idx)
-        print("gripper state", states[0][0])
+        #print("gripper state", states[0][0])
         return states[0][0] > 0.04
 
     def close_gripper(self):
@@ -243,7 +243,7 @@ class Robot:
 
     def check_if_gripper_is_empty(self):
         states = p.getJointStates(self.id, self.gripper_idx)
-        return states[0][0] < 0.0005
+        return states[0][0] < 0.0001
 
     def gripper_default_position(self):
         p.setJointMotorControlArray(

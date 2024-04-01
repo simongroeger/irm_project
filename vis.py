@@ -52,6 +52,7 @@ class Vis:
 
 
     def plot_trajectory(self, trajectory, trajectory_support_points, obstacle_tracking, nextTarget, currentEE):
+        return
         plt.clf()
 
         for obstacle in obstacle_tracking:
@@ -60,8 +61,8 @@ class Vis:
         for obstacle in self.sim_gt_obstacles:
             plt.plot(obstacle.get_pos()[0], obstacle.get_pos()[1], 'o', color='purple')
 
-        if len(trajectory_support_points)  > 0: plt.plot(trajectory_support_points[:, 0], trajectory_support_points[:, 1], color="grey")
-        if len(trajectory)  > 0: plt.plot(trajectory[:, 0], trajectory[:, 1], color="black")
+        if len(trajectory_support_points) > 0: plt.plot(trajectory_support_points[:, 0], trajectory_support_points[:, 1], color="grey")
+        if len(trajectory) > 0: plt.plot(trajectory[:, 0], trajectory[:, 1], color="black")
 
         plt.plot(currentEE[0], currentEE[1], 'o', color='yellow')
 
