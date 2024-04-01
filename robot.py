@@ -27,7 +27,7 @@ class Robot:
         self.pos = init_position
         self.axis_angle = orientation
         self.tscale = table_scaling
-        
+
         if self.tscale != 1.0:
             self.pos = [self.pos[0], self.pos[1], self.pos[2] * self.tscale]
         self.ori = p.getQuaternionFromEuler(self.axis_angle)
@@ -179,21 +179,21 @@ class Robot:
         t_curr, _ = self.ee_position()
         return np.abs(np.linalg.norm(t_des - t_curr)) < neccessary_distance
 
-    def check_if_ee_is_stoped(self):
+    def check_if_ee_is_stopped(self):
         joint_velocities = self.get_joint_velocities()
         return np.linalg.norm(joint_velocities) < 0.01
 
-    def check_if_ee_reached_orientation(self, r_des, neccessary_distance=0.2):
+    def check_if_ee_reached_orientation(self, r_des, neccessary_distance=0.02):
         _, r_curr = self.ee_position()
         q_d = Quaternion(x=r_des[0], y=r_des[1], z=r_des[2], w=r_des[3]).normalised
         q_e = Quaternion(x=r_curr[0], y=r_curr[1], z=r_curr[2], w=r_curr[3]).normalised
         q_r = q_d * q_e.conjugate
-        #print("orientation error", np.abs(np.linalg.norm(q_r.elements[1:])))
+        # print("orientation error", np.abs(np.linalg.norm(q_r.elements[1:])))
         return np.abs(np.linalg.norm(q_r.elements[1:])) < neccessary_distance
 
     def distance_to_target(self, t_des):
         t_curr, _ = self.ee_position()
-        #print("distance to target", np.linalg.norm(t_des - t_curr))
+        # print("distance to target", np.linalg.norm(t_des - t_curr))
         return np.linalg.norm(t_des - t_curr)
 
     def open_gripper(self):
@@ -221,8 +221,8 @@ class Robot:
             self.id,
             jointIndices=self.gripper_idx,
             controlMode=p.VELOCITY_CONTROL,
-            targetVelocities=[-1, -1],
-            forces=[3, 3],
+            targetVelocities=[-0.1, -0.1],
+            forces=[10, 10],
         )
 
     def check_if_gripper_closed(self):
@@ -233,17 +233,22 @@ class Robot:
 
         force1 = np.mean([contact[9] for contact in contact1])
         force2 = np.mean([contact[9] for contact in contact2])
-        #print("force", force1, force2)
+        # print("force", force1, force2)
         if force1 + force2 > 2:
             self.consecutive_contacts += 1
         else:
             self.consecutive_contacts = 0
 
         return self.consecutive_contacts > 120
-        
 
     def check_if_gripper_is_empty(self):
         states = p.getJointStates(self.id, self.gripper_idx)
         return states[0][0] < 0.0005
 
-    
+    def gripper_default_position(self):
+        p.setJointMotorControlArray(
+            self.id,
+            jointIndices=[self.arm_idx[-1]],
+            controlMode=p.POSITION_CONTROL,
+            targetPositions=[0.0],
+        )

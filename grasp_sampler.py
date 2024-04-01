@@ -50,11 +50,11 @@ class GraspSampler:
         print("Point cloud size: ", len(point_cloud.points))
         # o3d.visualization.draw_geometries([point_cloud])  # DEBUG
         # filter and downsample points
-        point_cloud = point_cloud.voxel_down_sample(0.005)
+        point_cloud = point_cloud.voxel_down_sample(0.0005)
         # filter to inside the goal volume: sim.target_pose
         bounding_box = o3d.geometry.AxisAlignedBoundingBox(
-            np.array((0.0, -0.65, 1.24)) - np.array([0.30, 0.30, 0.15]),
-            np.array((0.0, -0.65, 1.24)) + np.array([0.30, 0.30, 0.15]),
+            np.array((0.1, -0.65, 1.24)) - np.array([0.30, 0.30, -0.02]),
+            np.array((0.1, -0.65, 1.24)) + np.array([0.30, 0.30, 0.20]),
         )
         point_cloud = point_cloud.crop(bounding_box)
         # o3d.visualization.draw_geometries([point_cloud])  # DEBUG
@@ -67,7 +67,7 @@ class GraspSampler:
             0.045
         )  # Franka finger depth is actually a little less than 0.05
         safety_dist_above_table = (
-            0.005  # tweak based on how high the grasp should be from the table
+            0.00  # tweak based on how high the grasp should be from the table
         )
         print("before sampling")
         grasps, grasps_pos, grasps_rot = sampler.sample_grasps_parallel(
@@ -90,32 +90,49 @@ class GraspSampler:
         #     grasps_scene.add_geometry(g_mesh, node_name=f"grasp_{i}")
         # grasps_scene.show()
 
-        # ToDo: Check grasp definition to execute the grasps
-        suitable_grasps = []
-        for rot, pos in zip(grasps_rot, grasps_pos):
+        # pos filter
+        pos_filtered = []
+        for rot, pos, grasp in zip(grasps_rot, grasps_pos, grasps):
+            if np.linalg.norm(pos - np.array([0, 0, 1.24])) < 0.75:
+                pos_filtered.append((pos, rot, grasp))
+        orientation_filtered = []
+        for pos, rot, grasp in pos_filtered:
             rot_mat = np.asarray(p.getMatrixFromQuaternion(rot)).reshape(3, 3)
-            grasps_rot = rot_mat @ np.array([0, 0, 1])
+            grasps_rot = rot_mat @ np.array([0, 0, -1])
             grasps_rot /= np.linalg.norm(grasps_rot)
-            #print("Grasp rot: ", grasps_rot)
-            if -1.2 < grasps_rot[2] < -0.8:
-                if -1 < grasps_rot[1] < 0.5:
-                    # if -1.2 < grasps_rot[0] < -0.8:
-                    print("append", pos)
-                    suitable_grasps.append((pos, rot))
-
-        if len(suitable_grasps) == 0:
+            if grasps_rot[1] > 0:
+                if grasps_rot[2] > 0:
+                    orientation_filtered.append((pos, rot, grasp))
+        if len(orientation_filtered) == 0:
             return None
 
-        average_distance = np.inf
-        best_grasp = None
-        for pos, rot in suitable_grasps:
-            # calc average distance to other grasps
-            distance = 0
-            for pos2, _ in suitable_grasps:
-                distance += np.linalg.norm(pos - pos2)
-            distance /= len(suitable_grasps)
-            if distance < average_distance:
-                average_distance = distance
-                best_grasp = (pos, rot)
+        # grasps_scene = trimesh.Scene()
+        # from giga.utils import visual
 
+        # grasp_mesh_list = [
+        #     visual.grasp2mesh(g, score=1) for _, _, g in orientation_filtered
+        # ]
+        # for i, g_mesh in enumerate(grasp_mesh_list):
+        #     grasps_scene.add_geometry(g_mesh, node_name=f"grasp_{i}")
+        # grasps_scene.show()
+
+        # return best_grasp with the highest angle (z value is the highest)
+        best_grasp = None
+        z = -np.inf
+        for i, (pos, rot, grasp) in enumerate(orientation_filtered):
+            rot_mat = np.asarray(p.getMatrixFromQuaternion(rot)).reshape(3, 3)
+            grasps_rot = rot_mat @ np.array([0, 0, -1])
+            grasps_rot /= np.linalg.norm(grasps_rot)
+            if grasps_rot[2] > z:
+                z = grasps_rot[2]
+                best_grasp = (pos, rot, grasp)
+
+        vec = np.asarray(p.getMatrixFromQuaternion(best_grasp[1])).reshape(
+            3, 3
+        ) @ np.array([0, 0, -1])
+        p.addUserDebugLine(
+            best_grasp[0],
+            best_grasp[0] + vec,
+            [1, 0, 0],
+        )
         return best_grasp[0], best_grasp[1]

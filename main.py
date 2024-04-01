@@ -27,8 +27,7 @@ for time_step in range(10000):
     start = time.time()
 
     project.step(time_step)
-    
+
     sim.step()
 
     end = time.time()
-
