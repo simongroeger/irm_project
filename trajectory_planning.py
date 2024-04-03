@@ -13,6 +13,35 @@ class TrajectoryPlanning:
         self.second_way_point = np.array([0.25, 0.2, goal[2]])
         self.lookahead_distance = 0.07
 
+        self.sum_error = 0
+        self.count = 0
+
+    def calculateError(self, currentEE,  trajectory):
+        if len(trajectory) > 1:
+            min_distance = 0
+            clostest_index = -1
+            for i, elem in enumerate(trajectory):
+                current_distance = np.abs(np.linalg.norm(elem - currentEE))
+                if clostest_index == -1 or current_distance < min_distance:
+                    clostest_index = i
+                    min_distance = current_distance
+            if clostest_index != -1:
+                self.sum_error += min_distance
+                self.count += 1
+
+    def saveError(self):
+        avg_error = 0
+        if self.count > 0:
+            avg_error = self.sum_error / self.count
+        
+        print(str(self.lookahead_distance) + "," + str(avg_error) + "," + str(self.count) + "\n")
+
+        #with open("trajectory_trackin_error.txt", "a") as f:
+        #    f.write(str(self.lookahead_distance) + "," + str(avg_error) + "," + str(self.count) + "\n")
+
+    def resetErrorCount(self):
+        self.count = 0
+        self.sum_error = 0
 
     def getReferencePoint(self, currentEE,  trajectory):
         if len(trajectory) > 1:
@@ -54,7 +83,7 @@ class TrajectoryPlanning:
     def genTrajectory(self, trajectory_support_points):
         k = 3 if len(trajectory_support_points) > 3 else 2
         b_t, _ = scipy.interpolate.splprep([trajectory_support_points[:, 0], trajectory_support_points[:, 1], trajectory_support_points[:, 2]], k=k, s=3)
-        u_new = np.linspace(0, 1, 50)
+        u_new = np.linspace(0, 1, 100)
         values_x, values_y, values_z = scipy.interpolate.splev(u_new, b_t, der=0)
 
         trajectory = np.zeros((len(values_x), 3))
@@ -74,8 +103,8 @@ class TrajectoryPlanning:
         trajectory_support_points = np.array([self.start, self.first_way_point, self.second_way_point, self.goal])
         trajectory = self.genTrajectory(trajectory_support_points)
 
-        if self.checkTrajectory(trajectory, obstacle1, obstacle2):
-            return True, trajectory, trajectory_support_points
+        #if self.checkTrajectory(trajectory, obstacle1, obstacle2):
+        #    return True, trajectory, trajectory_support_points
     
         
         obstacle_middle = 0.5*(obstacle1 + obstacle2)

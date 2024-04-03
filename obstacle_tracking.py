@@ -73,7 +73,7 @@ class ObstacleTracking:
         return (px[0] <= 10 or px[0] >= 160) and px[1] >= 100 and px[1] >= 20
 
     def detectRedSpheres(self, rgb_img, depth_img, cam_type):
-        plt.imsave("custom_img.png", rgb_img[..., :3].astype(np.uint8))
+        #plt.imsave("custom_img.png", rgb_img[..., :3].astype(np.uint8))
 
         # detect red spheres: calculate position and size
         hsv = (matplotlib.colors.rgb_to_hsv(rgb_img[..., :3] / 255.0) * 255).astype(np.uint8)
@@ -132,7 +132,7 @@ class ObstacleTracking:
         for cluster in clusters:
             adjusted[cluster.pos_px[0], cluster.pos_px[1]] = 255
 
-        plt.imsave("custom_adjusted_img.png", adjusted[..., :3].astype(np.uint8))
+        #plt.imsave("custom_adjusted_img.png", adjusted[..., :3].astype(np.uint8))
 
         # compute cartesian coords from pixels
         viewMat, projMat = self.cam_matrices[cam_type]

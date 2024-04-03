@@ -133,6 +133,7 @@ class Project:
         elif self.state == "go_to_start":
             if self.robot.check_if_ee_reached(self.start_position):
                 self.state = "go_to_target"
+                self.trajectory_planning.resetErrorCount()
             else:
                 self.vis.plot_trajectory(
                     [],
@@ -146,6 +147,7 @@ class Project:
         elif self.state == "go_to_target":
             if self.robot.check_if_ee_reached(self.target_position, neccessary_distance=0.05):
                 self.state = "deliver"
+                self.trajectory_planning.saveError()
             else:
                 sucess, trajectory, trajectory_support_points = (
                     self.trajectory_planning.plan(
@@ -155,6 +157,8 @@ class Project:
                 current_target = self.trajectory_planning.getReferencePoint(
                     currentEE, trajectory
                 )
+
+                self.trajectory_planning.calculateError(currentEE, trajectory)
 
                 if not sucess:
                     self.state = "go_to_start"
