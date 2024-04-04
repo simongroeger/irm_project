@@ -145,7 +145,7 @@ class Project:
                 self.robot.control(self.start_position, DOWN_GRIPPER, 1)
 
         elif self.state == "go_to_target":
-            if self.robot.check_if_ee_reached(self.target_position, neccessary_distance=0.05):
+            if self.robot.check_if_ee_reached(self.target_position, neccessary_distance=0.02):
                 self.state = "deliver"
                 self.trajectory_planning.saveError()
             else:
@@ -176,7 +176,7 @@ class Project:
                         r_des = TARGET_GRIPPER
                     else:
                         r_des = DOWN_GRIPPER
-                    self.robot.control(current_target, r_des, 4)
+                    self.robot.control(current_target, r_des, 3)
 
         elif self.state == "deliver":
             self.gripper_state = "open"

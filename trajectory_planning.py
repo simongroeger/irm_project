@@ -103,8 +103,8 @@ class TrajectoryPlanning:
         trajectory_support_points = np.array([self.start, self.first_way_point, self.second_way_point, self.goal])
         trajectory = self.genTrajectory(trajectory_support_points)
 
-        #if self.checkTrajectory(trajectory, obstacle1, obstacle2):
-        #    return True, trajectory, trajectory_support_points
+        if self.checkTrajectory(trajectory, obstacle1, obstacle2):
+            return True, trajectory, trajectory_support_points
     
         
         obstacle_middle = 0.5*(obstacle1 + obstacle2)

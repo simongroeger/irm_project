@@ -88,7 +88,6 @@ class Vis:
 
     def plot_trajectory(self, trajectory, trajectory_support_points, obstacle_tracking, nextTarget, currentEE):    
 
-        return
         plt.clf()
 
         for obstacle in obstacle_tracking:

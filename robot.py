@@ -207,8 +207,8 @@ class Robot:
             self.id,
             jointIndices=self.gripper_idx,
             controlMode=p.VELOCITY_CONTROL,
-            targetVelocities=[0.5, 0.5],
-            forces=[1, 1],
+            targetVelocities=[1, 1],
+            forces=[5, 5],
         )
 
     def check_if_gripper_open(self):
