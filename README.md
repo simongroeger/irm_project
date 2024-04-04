@@ -38,3 +38,10 @@ After you have grasped the object you want to place it in the goal-basket. In or
 
 After you have grasped the YCB object and localized the obstacle, the final task is to plan the robot’s movement in order to place the object in the goal basket. Implement a dynamic Planner and execute it with your controller. Once you are above the goal-basket open the gripper to drop the object in the goal.
 
+
+## Solution
+
+Our solution is in the files grapss_sampler.py obstacle_tracking.py project.py robot.py trajectory_planning.py and vis.py.
+Due to cyclic import error we had to move the camera definition from simulation.py to the file camera.py.
+Some visualizations included in the report are in the folder visualization and videos for different objects are in the folder videos.
+We had to install some further libraries for some computations but everything was installed using pip and we should have included them all to the install manual at the beginning of the readme.
